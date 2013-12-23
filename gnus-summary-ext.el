@@ -229,14 +229,16 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
    (concat "Content-Disposition: attachment; filename=" regex) reverse))
 
 ;;;###autoload
-(defun* gnus-summary-ext-mime-action-on-parts (action &optional (pred t))
+(defun* gnus-summary-ext-mime-action-on-parts (action &optional (pred t) noprompt noerror)
   "Do something with all MIME parts in the current buffer for which PRED evaluates to non-nil.
 PRED should be a form that evaluates to non-nil for parts to be acted on.
 By default PRED is t, and so all parts are acted on.
 PRED will be placed within a let form where handle is bound to the handle for the part,
 size is the number of chars in the part, type is the MIME type (e.g. \"image/png\"),
 subtype is the subtype (e.g. \"png\"), supertype is the supertype (e.g. \"image\"),
-and filename is the filename."
+and filename is the filename.
+
+The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and errors respectively."
   (interactive
    (list (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t)
          (let ((val (read-from-minibuffer "Variables available in lisp expression:
@@ -245,7 +247,9 @@ subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\")
 
 Lisp expression matching parts (default t): "
                                           nil nil nil 'read-expression-history)))
-           (if (equal val "") t (read val)))))
+           (if (equal val "") t (read val)))
+         (y-or-n-p "Ignore prompts?")
+         (y-or-n-p "Ignore errors?")))
   (gnus-article-check-buffer)
   (let* ((action-pair (assoc action gnus-mime-action-alist))
          (n 2))
@@ -256,15 +260,22 @@ Lisp expression matching parts (default t): "
                  (type (mm-handle-media-type handle))
                  (subtype (mm-handle-media-subtype handle))
                  (supertype (mm-handle-media-supertype handle))
-                 (filename (mm-handle-filename handle)))
-            (if (eval pred) (funcall (cdr action-pair))))
+                 (filename (mm-handle-filename handle))
+                 (gnus-expert-user noprompt))
+            (if (eval pred)
+                (if noerror
+                    (condition-case error
+                        (funcall (cdr action-pair))
+                      (error (message "Error trying to apply action %s on part %d" action n))))
+                (funcall (cdr action-pair))))
           (setq n (1+ n))))))
 
 ;;;###autoload
-(defun gnus-summary-ext-act-on-parts-in-marked (arg &optional action pred)
+(defun gnus-summary-ext-act-on-parts-in-marked (arg &optional action pred noprompt noerror)
   "Do something with all MIME parts in articles that are process/prefixed.
 Only MIME parts for which PRED evaluates to non-nil will be acted on.
-See `gnus-summary-ext-mime-action-on-parts' for a description of the ACTION and PRED args.
+See `gnus-summary-ext-mime-action-on-parts' for a description of the ACTION, PRED, NOPROMPT,
+and NOERROR args.
 This command just applies that function to the articles."
   (interactive
    (list current-prefix-arg
@@ -275,8 +286,11 @@ subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\")
 
 Lisp expression matching parts (default t): "
                                           nil nil nil 'read-expression-history)))
-           (if (equal val "") t (read val)))))
-  (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts ,action ',pred)))
+           (if (equal val "") t (read val)))
+         (y-or-n-p "Ignore prompts?")
+         (y-or-n-p "Ignore errors?")))
+  (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts
+                                          ,action ',pred ,noprompt ,noerror)))
 
 (provide 'gnus-summary-ext)
 
