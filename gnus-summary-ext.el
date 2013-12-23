@@ -105,6 +105,7 @@
 
 ;;; Code:
 
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-match-mime-types (regex)
   "Return list of MIME media types matching REGEX."
   (remove-if-not (lambda (x) (string-match regex x))
@@ -112,6 +113,7 @@
 
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-limit-to-mime-type (regex &optional reverse)
   "Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 If REVERSE (the prefix), limit to articles that don't match."
@@ -121,6 +123,7 @@ If REVERSE (the prefix), limit to articles that don't match."
            (regexp-opt (gnus-summary-ext-match-mime-types regex))) reverse))
 
 
+;; simple-call-tree-info: DONE  
 (defmacro gnus-summary-ext-iterate-articles-safely (articles &rest body)
   "Loop over all ARTICLES and perform BODY within each article buffer.
 All hooks will be disabled before selecting each article."
@@ -140,6 +143,7 @@ All hooks will be disabled before selecting each article."
          ,@body))))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-apply-to-marked-safely (arg sexp)
   "Evaluate any lisp expression for all articles that are process/prefixed.
 This will evaluate SEXP after selecting each article, but will not run any hooks.
@@ -157,6 +161,7 @@ without selecting them."
   (gnus-summary-position-point))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-apply-to-marked (arg sexp)
   "Evaluate any lisp expression for all articles that are process/prefixed.
 This will evaluate SEXP after selecting each article, and running any hooks.
@@ -171,6 +176,7 @@ and see `gnus-summary-iterate' for iterating over articles without selecting the
       (eval sexp))))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-limit-to-num-parts (min max &optional reverse)
   "Limit the summary buffer to articles containing between MIN & MAX attachments.
 If MIN/MAX is nil then limit to articles with at most/least MAX/MIN attachments respectively.
@@ -196,6 +202,7 @@ If REVERSE (the prefix), limit to articles that don't match."
   (gnus-summary-position-point))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-limit-to-size (min max &optional reverse)
   "Limit the summary buffer to articles of size between MIN and MAX bytes.
 If MIN/MAX is nil then limit to sizes below/above MAX/MIN respectively.
@@ -220,6 +227,7 @@ Note: the articles returned might not match the size constraints exactly, but it
     (gnus-summary-position-point))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-limit-to-filename (regex &optional reverse)
   "Limit the summary buffer to articles containing attachments with names matching REGEX.
 If REVERSE (the prefix), limit to articles that don't match.
@@ -229,7 +237,8 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
    (concat "Content-Disposition: attachment; filename=" regex) reverse))
 
 ;;;###autoload
-(defun* gnus-summary-ext-mime-action-on-parts (action &optional (pred t) noprompt noerror)
+;; simple-call-tree-info: CHECK  
+(defun* gnus-summary-ext-mime-action-on-parts (action &optional arg (pred t) noprompt noerror)
   "Do something with all MIME parts in the current buffer for which PRED evaluates to non-nil.
 PRED should be a form that evaluates to non-nil for parts to be acted on.
 By default PRED is t, and so all parts are acted on.
@@ -240,16 +249,33 @@ and filename is the filename.
 
 The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and errors respectively."
   (interactive
-   (list (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t)
-         (let ((val (read-from-minibuffer "Variables available in lisp expression:
+   (let* ((action (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t))
+          (msg "Variables available in lisp expression:
 handle = handle for part, size = No. of chars in part, type = MIME type (e.g. \"image/png\")
-subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\")
+subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\"),
+filename = the name of the attached file
 
-Lisp expression matching parts (default t): "
-                                          nil nil nil 'read-expression-history)))
-           (if (equal val "") t (read val)))
-         (y-or-n-p "Ignore prompts?")
-         (y-or-n-p "Ignore errors?")))
+Lisp expression %s: ")
+          (noprompt (y-or-n-p "Ignore prompts?"))
+          (noerror (y-or-n-p "Ignore errors?"))
+          (arg2 (if (and noprompt
+                         (member action '("save to file" "save and strip" "replace with file"
+                                          "pipe to command" "view as type")))
+                    (let ((val (read-from-minibuffer
+                                (format msg
+                                        (cond 
+                                         ((member action '("save to file" "save and strip"))
+                                          "evaluating to filepath to save part to")
+                                         ((equal action "replace with file") "evaluating to filepath for replacement")
+                                         ((equal action "pipe to command") "evaluating to command")
+                                         ((equal action "view as type") "evaluating to type")))
+                                nil nil nil 'read-expression-history)))
+                      (if (equal val "") nil (read val)))))
+          (pred (let ((val (read-from-minibuffer
+                            (format msg "matching parts (default matches all parts)")
+                            nil nil nil 'read-expression-history)))
+                  (if (equal val "") t (read val)))))
+     (list action arg pred noprompt noerror)))
   (gnus-article-check-buffer)
   (let* ((action-pair (assoc action gnus-mime-action-alist))
          (n 2))
@@ -263,34 +289,53 @@ Lisp expression matching parts (default t): "
                  (filename (mm-handle-filename handle))
                  (gnus-expert-user noprompt))
             (if (eval pred)
-                (if noerror
-                    (condition-case error
-                        (funcall (cdr action-pair))
-                      (error (message "Error trying to apply action %s on part %d" action n))))
-                (funcall (cdr action-pair))))
+                (condition-case err
+                    (if arg
+                        (funcall (cdr action-pair) (eval arg))
+                      (funcall (cdr action-pair)))
+                  (error (if noerror
+                             (message "Error trying to apply action %s on part %d" action n)
+                           (signal (car err) (cdr err)))))))
           (setq n (1+ n))))))
 
 ;;;###autoload
-(defun gnus-summary-ext-act-on-parts-in-marked (arg &optional action pred noprompt noerror)
+;; simple-call-tree-info: CHECK  
+(defun gnus-summary-ext-act-on-parts-in-marked (arg &optional action arg2 pred noprompt noerror)
   "Do something with all MIME parts in articles that are process/prefixed.
 Only MIME parts for which PRED evaluates to non-nil will be acted on.
 See `gnus-summary-ext-mime-action-on-parts' for a description of the ACTION, PRED, NOPROMPT,
 and NOERROR args.
 This command just applies that function to the articles."
   (interactive
-   (list current-prefix-arg
-         (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t)
-         (let ((val (read-from-minibuffer "Variables available in lisp expression:
+   (let* ((action (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t))
+          (msg "Variables available in lisp expression:
 handle = handle for part, size = No. of chars in part, type = MIME type (e.g. \"image/png\")
-subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\")
+subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\"),
+filename = the name of the attached file
 
-Lisp expression matching parts (default t): "
-                                          nil nil nil 'read-expression-history)))
-           (if (equal val "") t (read val)))
-         (y-or-n-p "Ignore prompts?")
-         (y-or-n-p "Ignore errors?")))
+Lisp expression %s: ")
+          (noprompt (y-or-n-p "Ignore prompts?"))
+          (noerror (y-or-n-p "Ignore errors?"))
+          (arg2 (if (and noprompt
+                         (member action '("save to file" "save and strip" "replace with file"
+                                          "pipe to command" "view as type")))
+                    (let ((val (read-from-minibuffer
+                                (format msg
+                                        (cond 
+                                         ((member action '("save to file" "save and strip"))
+                                          "evaluating to filepath to save part to")
+                                         ((equal action "replace with file") "evaluating to filepath for replacement")
+                                         ((equal action "pipe to command") "evaluating to command")
+                                         ((equal action "view as type") "evaluating to type")))
+                                nil nil nil 'read-expression-history)))
+                      (if (equal val "") nil (read val)))))
+          (pred (let ((val (read-from-minibuffer
+                            (format msg "matching parts (default matches all parts)")
+                            nil nil nil 'read-expression-history)))
+                  (if (equal val "") t (read val)))))
+     (list current-prefix-arg action arg2 pred noprompt noerror)))
   (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts
-                                          ,action ',pred ,noprompt ,noerror)))
+                                          ,action ',arg2 ',pred ,noprompt ,noerror)))
 
 (provide 'gnus-summary-ext)
 
