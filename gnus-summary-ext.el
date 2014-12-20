@@ -337,6 +337,38 @@ Lisp expression %s: ")
   (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts
                                           ,action ',arg2 ',pred ,noprompt ,noerror)))
 
+;; simple-call-tree-info: CHECK  
+(defun gnus-summary-ext-search-article-p (regexp article &optional showmime)
+  "Return non-nil if article number ARTICLE has contents matching REGEXP.
+`gnus-select-article-hook' is not called during the search."
+  ;; We have to require this here to make sure that the following
+  ;; dynamic binding isn't shadowed by autoloading.
+  (require 'gnus-async)
+  (require 'gnus-art)
+  (let ((gnus-select-article-hook nil)	;Disable hook.
+	(gnus-article-prepare-hook nil)
+	(gnus-mark-article-hook nil)	;Inhibit marking as read.
+	(gnus-use-article-prefetch nil)
+	(gnus-xmas-force-redisplay nil)	;Inhibit XEmacs redisplay.
+	(gnus-use-trees nil)		;Inhibit updating tree buffer.
+	(gnus-visual nil)
+	(gnus-keep-backlog nil)
+	(gnus-break-pages nil)
+	(gnus-summary-display-arrow nil)
+	(gnus-updated-mode-lines nil)
+	(gnus-auto-center-summary nil)
+	(sum (current-buffer))
+	(gnus-display-mime-function (if showmime gnus-display-mime-function)))
+    (gnus-save-hidden-threads
+      (gnus-summary-select-article nil t nil article)
+      (set-buffer gnus-article-buffer)
+      (goto-char (window-point (get-buffer-window (current-buffer))))
+      (if (re-search-forward regexp nil t)
+          ;; We found the regexp.
+          (prog1 (point)
+            (set-buffer sum))))))
+
+
 (provide 'gnus-summary-ext)
 
 ;; (magit-push)
