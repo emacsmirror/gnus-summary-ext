@@ -55,7 +55,7 @@
 ;;  `gnus-summary-ext-limit-to-mime-type'
 ;;    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 ;;  `gnus-summary-ext-apply-to-marked-safely'
-;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;    Evaluate any lisp expression for all articles that are process/prefixed. 
 ;;  `gnus-summary-ext-apply-to-marked'
 ;;    Evaluate any lisp expression for all articles that are process/prefixed.
 ;;  `gnus-summary-ext-limit-to-num-parts'
@@ -135,10 +135,10 @@ All hooks will be disabled before selecting each article."
          (gnus-summary-display-arrow nil)
          (gnus-updated-mode-lines nil)
          (gnus-auto-center-summary nil)
-         (gnus-display-mime-function nil))
+         (gnus-display-mime-function nil)
+         (gnus-mark-article-hook nil))
      (dolist (article ,articles)
-       (let (gnus-mark-article-hook)
-         (gnus-summary-select-article t t nil article))
+       (gnus-summary-select-article t t nil article)
        (with-current-buffer gnus-article-buffer
          ,@body))))
 
@@ -362,7 +362,7 @@ Lisp expression %s: ")
     (gnus-save-hidden-threads
       (gnus-summary-select-article nil t nil article)
       (set-buffer gnus-article-buffer)
-      (goto-char (window-point (get-buffer-window (current-buffer))))
+      (article-goto-body)
       (if (re-search-forward regexp nil t)
           ;; We found the regexp.
           (prog1 (point)
