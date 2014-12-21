@@ -12,11 +12,11 @@
 ;; URL: https://github.com/vapniks/gnus-summary-ext
 ;; Keywords: comm
 ;; Compatibility: GNU Emacs 24.3.1
-;; Package-Requires: ((macro-utils "1.0"))
+;; Package-Requires: ()
 ;;
 ;; Features that might be required by this library:
 ;;
-;; gnus, macro-utils, cl
+;; gnus, cl
 ;;
 
 ;;; This file is NOT part of GNU Emacs
@@ -98,9 +98,11 @@
 ;; 
 ;;
 
+;; NOTE: for debugging you can use (gnus-summary-article-number) to get the article number of the
+;; article on the current line of the *Summary* mode buffer.
+
 ;;; Require
 (require 'gnus)
-(require 'macro-utils)
 (eval-when-compile 'cl)
 
 ;;; Code:
@@ -122,11 +124,9 @@ If REVERSE (the prefix), limit to articles that don't match."
    (concat "Content-Type: " 
            (regexp-opt (gnus-summary-ext-match-mime-types regex))) reverse))
 
-
-;; simple-call-tree-info: DONE  
-(defmacro gnus-summary-ext-iterate-articles-safely (articles &rest body)
-  "Loop over all ARTICLES and perform BODY within each article buffer.
-All hooks will be disabled before selecting each article."
+;; simple-call-tree-info: CHECK
+(defmacro gnus-summary-ext-iterate-articles-safely-1 (articles &rest body)
+  "Disable all relevant gnus hooks and loop over all ARTICLES performing BODY for each one."
   `(let ((gnus-select-article-hook nil)	;Disable hook.
          (gnus-article-prepare-hook nil)
          (gnus-use-article-prefetch nil)
@@ -138,9 +138,17 @@ All hooks will be disabled before selecting each article."
          (gnus-display-mime-function nil)
          (gnus-mark-article-hook nil))
      (dolist (article ,articles)
-       (gnus-summary-select-article t t nil article)
-       (with-current-buffer gnus-article-buffer
-         ,@body))))
+       ,@body)))
+
+;; simple-call-tree-info: CHECK
+(defmacro gnus-summary-ext-iterate-articles-safely (articles &rest body)
+  "Loop over all ARTICLES and perform BODY within each article buffer.
+All hooks will be disabled before selecting each article."
+  `(gnus-summary-ext-iterate-articles-safely-1
+    articles
+    (gnus-summary-select-article t t nil article)
+    (with-current-buffer gnus-article-buffer
+      ,@body)))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE  
@@ -176,6 +184,16 @@ and see `gnus-summary-iterate' for iterating over articles without selecting the
       (eval sexp))))
 
 ;;;###autoload
+;; simple-call-tree-info: CHECK
+(defun gnus-summary-ext-count-parts nil
+  "Count the number of parts in an article.
+This must be called from within the *Article* buffer."
+  (- (length (or gnus-article-mime-handles
+                 (mm-dissect-buffer nil gnus-article-loose-mime)
+                 (and gnus-article-emulate-mime
+                      (mm-uu-dissect)))) 2))
+
+;;;###autoload
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-limit-to-num-parts (min max &optional reverse)
   "Limit the summary buffer to articles containing between MIN & MAX attachments.
@@ -188,12 +206,9 @@ If REVERSE (the prefix), limit to articles that don't match."
         (max (or max 1000))
         articles)
     (gnus-summary-ext-iterate-articles-safely
-     (mapcar 'car gnus-newsgroup-data)
+     gnus-newsgroup-articles
      (article-goto-body)
-     (let ((num (- (length (or gnus-article-mime-handles
-                               (mm-dissect-buffer nil gnus-article-loose-mime)
-                               (and gnus-article-emulate-mime
-                                    (mm-uu-dissect)))) 2)))
+     (let ((num (gnus-summary-ext-count-parts)))
        (when (and (>= num min) (<= num max))
          (push article articles))))
     (if (not articles)
@@ -216,7 +231,7 @@ Note: the articles returned might not match the size constraints exactly, but it
         (max (or max 999999999999))
         articles)
     (gnus-summary-ext-iterate-articles-safely
-     (mapcar 'car gnus-newsgroup-data)
+     gnus-newsgroup-articles
      (article-goto-body)
      (let ((size (buffer-size)))
        (when (and (>= size min) (<= size max))
@@ -337,37 +352,67 @@ Lisp expression %s: ")
   (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts
                                           ,action ',arg2 ',pred ,noprompt ,noerror)))
 
-;; simple-call-tree-info: CHECK  
-(defun gnus-summary-ext-search-article-p (regexp article &optional showmime)
-  "Return non-nil if article number ARTICLE has contents matching REGEXP.
-`gnus-select-article-hook' is not called during the search."
-  ;; We have to require this here to make sure that the following
-  ;; dynamic binding isn't shadowed by autoloading.
-  (require 'gnus-async)
-  (require 'gnus-art)
-  (let ((gnus-select-article-hook nil)	;Disable hook.
-	(gnus-article-prepare-hook nil)
-	(gnus-mark-article-hook nil)	;Inhibit marking as read.
-	(gnus-use-article-prefetch nil)
-	(gnus-xmas-force-redisplay nil)	;Inhibit XEmacs redisplay.
-	(gnus-use-trees nil)		;Inhibit updating tree buffer.
-	(gnus-visual nil)
-	(gnus-keep-backlog nil)
-	(gnus-break-pages nil)
-	(gnus-summary-display-arrow nil)
-	(gnus-updated-mode-lines nil)
-	(gnus-auto-center-summary nil)
-	(sum (current-buffer))
-	(gnus-display-mime-function (if showmime gnus-display-mime-function)))
-    (gnus-save-hidden-threads
-      (gnus-summary-select-article nil t nil article)
-      (set-buffer gnus-article-buffer)
-      (article-goto-body)
-      (if (re-search-forward regexp nil t)
-          ;; We found the regexp.
-          (prog1 (point)
-            (set-buffer sum))))))
+;; simple-call-tree-info: TODO  
+(defun gnus-summary-ext-read-limit-expression nil
+  (read-minibuffer "sexp: "))
 
+;; simple-call-tree-info: DONE
+(defun gnus-summary-ext-limit-expression (expr)
+  "Limit the summary buffer to articles which match EXPR."
+  (interactive (list (gnus-summary-ext-read-limit-expression)))
+  (eval
+   `(cl-flet* ((pred (func)
+                     (gnus-summary-select-article t t nil article)
+                     (with-current-buffer gnus-article-buffer
+                       (article-goto-body)
+                       (let ((message-log-max nil))
+                         (message "Checking article %s" article))
+                       (funcall func)))
+               (content (regexp) (pred (lambda nil (re-search-forward regexp nil t))))
+               (header (hd regexp)
+                       (pred (lambda nil (string-match regexp (or (message-fetch-field hd) "")))))
+               (from (regexp) (string-match regexp (mail-header-from hdr)))
+               (age (days) (let* ((younger (< days 0))
+                                  (days (abs days))
+                                  (date (gnus-date-get-time (mail-header-date hdr)))
+                                  (is-younger (time-less-p
+                                               (time-since date)
+                                               (days-to-time days))))
+                             (if younger is-younger (not is-younger))))
+               (agebetween (min max) (and (age min) (not (age max))))
+               (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
+                              (memq (gnus-data-mark data) mrks)))
+               (score (scr) (>= (gnus-summary-article-score article) scr))
+               (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
+                                             gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
+                                             gnus-low-score-mark gnus-expirable-mark
+                                             gnus-canceled-mark gnus-catchup-mark gnus-sparse-mark
+                                             gnus-duplicate-mark)))
+               (unread nil (not (read)))
+               (replied nil (memq article gnus-newsgroup-replied))
+               (unreplied nil (not (replied)))
+               (filename (regexp) (content (concat "Content-Disposition: attachment; filename=" regexp)))               
+               (mimetype (regexp) (content (concat "Content-Type: "
+                                              (regexp-opt (gnus-summary-ext-match-mime-types regexp)))))
+               (numparts (min &optional max) (pred (lambda nil (let ((num (gnus-summary-ext-count-parts)))
+                                                       (and (>= num min) (if max (<= num max) t))))))
+               (size (min &optional max) (pred (lambda nil (let ((size (buffer-size)))
+                                                             (and (>= size min) (if max (<= size max) t))))))
+               (subject (regexp) (string-match regexp (mail-header-subject hdr)))
+               (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
+               (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
+               (recipient (regexp) (or (to regexp) (cc regexp)))
+               (address (regexp) (or (to regexp) (cc regexp) (from regexp))))
+      (let (filtered)
+        (gnus-summary-ext-iterate-articles-safely-1
+         gnus-newsgroup-articles
+         (let* ((data (assq article gnus-newsgroup-data))
+                (hdr (gnus-data-header data)))
+           (when ,expr (push article filtered))))
+        (if (not filtered)
+            (message "No messages matched")
+          (gnus-summary-limit filtered)))))
+  (gnus-summary-position-point))
 
 (provide 'gnus-summary-ext)
 
