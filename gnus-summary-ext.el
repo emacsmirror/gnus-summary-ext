@@ -6,8 +6,8 @@
 ;; Maintainer: Joe Bloggs <vapniks@yahoo.com>
 ;; Copyleft (Ↄ) 2013, Joe Bloggs, all rites reversed.
 ;; Created: 2013-12-23 00:06:16
-;; Version: 0.1
-;; Last-Updated: 2013-12-23 00:06:16
+;; Version: 1.0
+;; Last-Updated: 2014-12-21 22:06:00
 ;;           By: Joe Bloggs
 ;; URL: https://github.com/vapniks/gnus-summary-ext
 ;; Keywords: comm
@@ -50,24 +50,25 @@
 
 ;;; Commands:
 ;;
-;; Below is a complete command list:
+;; Below are complete command list:
 ;;
-;;  `gnus-summary-ext-limit-to-mime-type'
-;;    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 ;;  `gnus-summary-ext-apply-to-marked-safely'
-;;    Evaluate any lisp expression for all articles that are process/prefixed. 
+;;    Evaluate any lisp expression for all articles that are process/prefixed.
 ;;  `gnus-summary-ext-apply-to-marked'
 ;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;  `gnus-summary-ext-act-on-parts-in-marked'
+;;    Do something with all MIME parts in articles that are process/prefixed.
+;;  `gnus-summary-ext-limit-to-mime-type'
+;;    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 ;;  `gnus-summary-ext-limit-to-num-parts'
 ;;    Limit the summary buffer to articles containing between MIN & MAX attachments.
 ;;  `gnus-summary-ext-limit-to-size'
 ;;    Limit the summary buffer to articles of size between MIN and MAX bytes.
 ;;  `gnus-summary-ext-limit-to-filename'
 ;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
-;;  `gnus-summary-ext-mime-action-on-parts'
-;;    Do something with all MIME parts in the current buffer for which PRED evaluates to non-nil.    
-;;  `gnus-summary-ext-act-on-parts-in-marked'
-;;    Do something with all MIME parts in articles that are process/prefixed.
+;;  `gnus-summary-ext-limit-expression'
+;;    Limit the summary buffer to articles which match EXPR.
+;;
 
 ;;; Installation:
 ;;
@@ -183,7 +184,6 @@ and see `gnus-summary-iterate' for iterating over articles without selecting the
       (article-goto-body)
       (eval sexp))))
 
-;;;###autoload
 ;; simple-call-tree-info: CHECK
 (defun gnus-summary-ext-count-parts nil
   "Count the number of parts in an article.
@@ -356,6 +356,7 @@ Lisp expression %s: ")
 (defun gnus-summary-ext-read-limit-expression nil
   (read-minibuffer "sexp: "))
 
+;;;###autoload
 ;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-limit-expression (expr)
   "Limit the summary buffer to articles which match EXPR."
