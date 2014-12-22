@@ -115,7 +115,11 @@
 
 ;; simple-call-tree-info: DONE
 (defcustom gnus-summary-ext-saved-filters nil
-  "An alist of named filters that can be used with `gnus-summary-ext-limit-expression' (which see)."
+  "An alist of named filters that can be used with `gnus-summary-ext-limit-filter' and `gnus-summary-ext-limit-expression'.
+The car of each item is a symbol naming the filter, and the cdr is an expression which can be passed to
+ `gnus-summary-ext-limit-expression' (which see). The expression may utilize any of the functions defined by
+ `gnus-summary-ext-limit-expression' and/or other named filters (which should be enclosed in parentheses,
+e.g. (filter))."
   :group 'gnus-summary-ext
   :type  '(alist :key-type symbol :value-type sexp))
 
