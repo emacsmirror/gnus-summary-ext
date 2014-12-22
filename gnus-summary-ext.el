@@ -108,10 +108,12 @@
 
 ;;; Code:
 
+;; simple-call-tree-info: DONE
 (defgroup gnus-summary-ext nil
   "Gnus summary extension"
   :group 'gnus-summary)
 
+;; simple-call-tree-info: DONE
 (defcustom gnus-summary-ext-saved-filters nil
   "An alist of named filters that can be used with `gnus-summary-ext-limit-expression' (which see)."
   :group 'gnus-summary-ext
@@ -462,6 +464,15 @@ To limit to unreplied messages that are matched by either of the saved filters '
             (message "No messages matched")
           (gnus-summary-limit filtered)))))
   (gnus-summary-position-point))
+
+;; simple-call-tree-info: DONE
+(defun gnus-summary-ext-limit-filter (filter)
+  (interactive (list (ido-completing-read
+                      "Filter name: "
+                      (mapcar (lambda (item) (symbol-name (car item)))
+                              gnus-summary-ext-saved-filters))))
+  (gnus-summary-ext-limit-expression (list (intern-soft filter))))
+
 
 (provide 'gnus-summary-ext)
 
