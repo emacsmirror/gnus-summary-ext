@@ -42,9 +42,14 @@
 ;; Bitcoin donations gratefully accepted: 16mhw12vvtzCwQyvvLAqCSBvf8i41CfKhK
 ;;
 ;; This library provides extra limit commands for filtering the gnus summary buffer,
-;; some commands for performing actions on MIME parts in articles,
-;; and some general functions for evaluating elisp code in all articles that have the
-;; process mark. See the documentation of the individual commands & functions for more
+;; some commands for performing actions on MIME parts in articles, and some general
+;; functions for evaluating elisp code in all articles that have the process mark.
+
+;; You can apply complex filters for filtering the messages displayed in the *Summary* buffer
+;; using `gnus-summary-ext-limit-expression'. You can save these filters in `gnus-summary-ext-saved-filters',
+;; and then reapply them with `gnus-summary-ext-limit-filter'.
+
+;; See the documentation of the individual commands & functions for more
 ;; details.
 ;;;;
 
@@ -52,12 +57,6 @@
 ;;
 ;; Below are complete command list:
 ;;
-;;  `gnus-summary-ext-apply-to-marked-safely'
-;;    Evaluate any lisp expression for all articles that are process/prefixed.
-;;  `gnus-summary-ext-apply-to-marked'
-;;    Evaluate any lisp expression for all articles that are process/prefixed.
-;;  `gnus-summary-ext-act-on-parts-in-marked'
-;;    Do something with all MIME parts in articles that are process/prefixed.
 ;;  `gnus-summary-ext-limit-to-mime-type'
 ;;    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 ;;  `gnus-summary-ext-limit-to-num-parts'
@@ -68,7 +67,22 @@
 ;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
 ;;  `gnus-summary-ext-limit-expression'
 ;;    Limit the summary buffer to articles which match EXPR.
+;;  `gnus-summary-ext-limit-filter'
+;;    Apply saved filter to articles in the summary buffer.
+;;  `gnus-summary-ext-apply-to-marked-safely'
+;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;  `gnus-summary-ext-apply-to-marked'
+;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;  `gnus-summary-ext-act-on-parts-in-marked'
+;;    Do something with all MIME parts in articles that are process/prefixed.
 ;;
+;;; Customizable Options:
+;;
+;; Below are customizable option list:
+;;
+;;  `gnus-summary-ext-saved-filters'
+;;    An alist of named filters that can be used with `gnus-summary-ext-limit-filter' and `gnus-summary-ext-limit-expression'.
+;;    default = nil
 
 ;;; Installation:
 ;;
@@ -87,7 +101,8 @@
 ;;	
 ;; 2013/12/23
 ;;      * First released.
-;; 
+;;
+;; See the github repo
 
 ;;; Acknowledgements:
 ;;
