@@ -108,6 +108,15 @@
 
 ;;; Code:
 
+(defgroup gnus-summary-ext nil
+  "Gnus summary extension"
+  :group 'gnus-summary)
+
+(defcustom gnus-summary-ext-saved-filters nil
+  "An alist of named filters that can be used with `gnus-summary-ext-limit-expression' (which see)."
+  :group 'gnus-summary-ext
+  :type  '(alist :key-type symbol :value-type sexp))
+
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-match-mime-types (regex)
   "Return list of MIME media types matching REGEX."
@@ -361,7 +370,8 @@ Lisp expression %s: ")
 (defun gnus-summary-ext-limit-expression (expr)
   "Limit the summary buffer to articles which match EXPR.
 EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
-It can utilize the following functions:
+It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
+in parentheses, e.g: (filter)), and any of the following functions:
 
  (subject REGEXP) : matches articles with subject field matching REGEXP
  (from REGEXP) : matches articles with from field matching REGEXP 
@@ -392,6 +402,9 @@ each article:
 
 For example, to limit to messages received within the last week, either from alice or sent to bob:
   (gnus-summary-ext-limit-expression '(and (age -7) (or (from \"alice\") (to \"bob\"))))
+
+To limit to unreplied messages that are matched by either of the saved filters 'work' or 'friends':
+  (gnus-summary-ext-limit-expression '(and (unreplied) (or (work) (friends))))
 "
   (interactive (list (gnus-summary-ext-read-limit-expression)))
   (eval
@@ -436,7 +449,9 @@ For example, to limit to messages received within the last week, either from ali
                (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
                (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
                (recipient (regexp) (or (to regexp) (cc regexp)))
-               (address (regexp) (or (to regexp) (cc regexp) (from regexp))))
+               (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
+               ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
+                          collect (list name nil code)))
       (let (filtered)
         (gnus-summary-ext-iterate-articles-safely-1
          gnus-newsgroup-articles
