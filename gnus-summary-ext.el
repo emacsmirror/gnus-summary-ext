@@ -379,14 +379,6 @@ Lisp expression %s: ")
   (gnus-summary-ext-apply-to-marked arg `(gnus-summary-ext-mime-action-on-parts
                                           ,action ',arg2 ',pred ,noprompt ,noerror)))
 
-;; simple-call-tree-info: TODO  
-(defun gnus-summary-ext-read-limit-expression nil
-  (read-from-minibuffer
-   "Filter expression (press up/down to see previous/saved filters): " nil nil t
-   'read-expression-history
-   (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
-           gnus-summary-ext-saved-filters)))
-
 ;;;###autoload
 ;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-limit-filter (expr)
@@ -428,7 +420,11 @@ For example, to limit to messages received within the last week, either from ali
 To limit to unreplied messages that are matched by either of the saved filters 'work' or 'friends':
   (gnus-summary-ext-limit-filter '(and (unreplied) (or (work) (friends))))
 "
-  (interactive (list (gnus-summary-ext-read-limit-expression)))
+  (interactive (list (read-from-minibuffer
+                      "Filter expression (press up/down to see previous/saved filters): "
+                      nil nil t 'read-expression-history
+                      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
+                              gnus-summary-ext-saved-filters))))
   (eval
    `(cl-flet* ((pred (func)
                      (gnus-summary-select-article t t nil article)
