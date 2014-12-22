@@ -46,8 +46,7 @@
 ;; functions for evaluating elisp code in all articles that have the process mark.
 
 ;; You can apply complex filters for filtering the messages displayed in the *Summary* buffer
-;; using `gnus-summary-ext-limit-expression'. You can save these filters in `gnus-summary-ext-saved-filters',
-;; and then reapply them with `gnus-summary-ext-limit-filter'.
+;; using `gnus-summary-ext-limit-filter', and you can save these filters in `gnus-summary-ext-saved-filters'.
 
 ;; See the documentation of the individual commands & functions for more
 ;; details.
@@ -65,10 +64,8 @@
 ;;    Limit the summary buffer to articles of size between MIN and MAX bytes.
 ;;  `gnus-summary-ext-limit-to-filename'
 ;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
-;;  `gnus-summary-ext-limit-expression'
-;;    Limit the summary buffer to articles which match EXPR.
 ;;  `gnus-summary-ext-limit-filter'
-;;    Apply saved filter to articles in the summary buffer.
+;;    Limit the summary buffer to articles which match filter expression.
 ;;  `gnus-summary-ext-apply-to-marked-safely'
 ;;    Evaluate any lisp expression for all articles that are process/prefixed.
 ;;  `gnus-summary-ext-apply-to-marked'
@@ -81,7 +78,7 @@
 ;; Below are customizable option list:
 ;;
 ;;  `gnus-summary-ext-saved-filters'
-;;    An alist of named filters that can be used with `gnus-summary-ext-limit-filter' and `gnus-summary-ext-limit-expression'.
+;;    An alist of named filters that can be used with `gnus-summary-ext-limit-filter'.
 ;;    default = nil
 
 ;;; Installation:
@@ -130,10 +127,10 @@
 
 ;; simple-call-tree-info: DONE
 (defcustom gnus-summary-ext-saved-filters nil
-  "An alist of named filters that can be used with `gnus-summary-ext-limit-filter' and `gnus-summary-ext-limit-expression'.
+  "An alist of named filters that can be used with `gnus-summary-ext-limit-filter'.
 The car of each item is a symbol naming the filter, and the cdr is an expression which can be passed to
- `gnus-summary-ext-limit-expression' (which see). The expression may utilize any of the functions defined by
- `gnus-summary-ext-limit-expression' and/or other named filters (which should be enclosed in parentheses,
+ `gnus-summary-ext-limit-filter' (which see). The expression may utilize any of the functions defined by
+ `gnus-summary-ext-limit-filter' and/or other named filters (which should be enclosed in parentheses,
 e.g. (filter))."
   :group 'gnus-summary-ext
   :type  '(alist :key-type symbol :value-type sexp))
@@ -384,11 +381,15 @@ Lisp expression %s: ")
 
 ;; simple-call-tree-info: TODO  
 (defun gnus-summary-ext-read-limit-expression nil
-  (read-minibuffer "sexp: "))
+  (read-from-minibuffer
+   "Filter expression (press up/down to see previous/saved filters): " nil nil t
+   'read-expression-history
+   (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
+           gnus-summary-ext-saved-filters)))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
-(defun gnus-summary-ext-limit-expression (expr)
+(defun gnus-summary-ext-limit-filter (expr)
   "Limit the summary buffer to articles which match EXPR.
 EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
 It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
@@ -422,10 +423,10 @@ each article:
                   If MAX is omitted then just check if size is bigger than MIN bytes
 
 For example, to limit to messages received within the last week, either from alice or sent to bob:
-  (gnus-summary-ext-limit-expression '(and (age -7) (or (from \"alice\") (to \"bob\"))))
+  (gnus-summary-ext-limit-filter '(and (age -7) (or (from \"alice\") (to \"bob\"))))
 
 To limit to unreplied messages that are matched by either of the saved filters 'work' or 'friends':
-  (gnus-summary-ext-limit-expression '(and (unreplied) (or (work) (friends))))
+  (gnus-summary-ext-limit-filter '(and (unreplied) (or (work) (friends))))
 "
   (interactive (list (gnus-summary-ext-read-limit-expression)))
   (eval
@@ -483,14 +484,6 @@ To limit to unreplied messages that are matched by either of the saved filters '
             (message "No messages matched")
           (gnus-summary-limit filtered)))))
   (gnus-summary-position-point))
-
-;; simple-call-tree-info: DONE
-(defun gnus-summary-ext-limit-filter (filter)
-  (interactive (list (ido-completing-read
-                      "Filter name: "
-                      (mapcar (lambda (item) (symbol-name (car item)))
-                              gnus-summary-ext-saved-filters))))
-  (gnus-summary-ext-limit-expression (list (intern-soft filter))))
 
 
 (provide 'gnus-summary-ext)
