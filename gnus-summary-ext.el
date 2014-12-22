@@ -359,7 +359,40 @@ Lisp expression %s: ")
 ;;;###autoload
 ;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-limit-expression (expr)
-  "Limit the summary buffer to articles which match EXPR."
+  "Limit the summary buffer to articles which match EXPR.
+EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
+It can utilize the following functions:
+
+ (subject REGEXP) : matches articles with subject field matching REGEXP
+ (from REGEXP) : matches articles with from field matching REGEXP 
+ (to REGEXP) : matches articles with To: field matching REGEXP
+ (cc REGEXP) : matches articles with Cc: field matching REGEXP
+ (recipient REGEXP) : matches articles with To: or Cc: field matching REGEXP
+ (address REGEXP) : matches articles with To:, Cc: or From: field matching REGEXP
+ (read) : matches articles that have been read
+ (unread) : matches articles that haven't yet been read (equivalent to (not (read)))
+ (replied) : matches articles which have been replied to 
+ (unreplied) : matches articles which haven't been replied to (equivalent to (not (replied)))
+ (age DAYS) : matches articles received before/after DAYS days ago (see `gnus-summary-limit-to-age')
+ (agebetween MIN MAX) : matches articles received between MIN and MAX days ago.
+ (marks STR) : matches articles with marks in STR (see `gnus-summary-limit-to-marks')
+
+The following functions can also be used but will be much slower since they are evaluated after selecting
+each article:
+
+ (pred FUNC)     : matches articles for which function FUNC returns non-nil after selecting the article
+ (content REGEXP)  : matches articles containing text that matches REGEXP 
+ (header HD REGEXP) : matches articles with headers matching HD (a regular expression), whose values match REGEXP
+ (filename REGEXP) : matches articles containing file attachments whose names match REGEXP
+ (mimetype REGEXP) : matches articles containing mime parts with type names matching REGEXP
+ (numparts MIN MAX) : matches articles with between MIN and MAX parts/attachments (inclusive).
+                      Note: html and embedded images count as parts, and often there are several of these in an article.
+ (size MIN MAX) : matches articles of approximate size between MIN & MAX bytes. 
+                  If MAX is omitted then just check if size is bigger than MIN bytes
+
+For example, to limit to messages received within the last week, either from alice or sent to bob:
+  (gnus-summary-ext-limit-expression '(and (age -7) (or (from \"alice\") (to \"bob\"))))
+"
   (interactive (list (gnus-summary-ext-read-limit-expression)))
   (eval
    `(cl-flet* ((pred (func)
