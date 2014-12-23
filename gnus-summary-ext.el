@@ -233,7 +233,7 @@ If REVERSE (the prefix), limit to articles that don't match."
         (max (or max 1000))
         articles)
     (gnus-summary-ext-iterate-articles-safely
-     gnus-newsgroup-articles
+     (mapcar 'car gnus-newsgroup-data)
      (article-goto-body)
      (let ((num (gnus-summary-ext-count-parts)))
        (when (and (>= num min) (<= num max))
@@ -258,7 +258,7 @@ Note: the articles returned might not match the size constraints exactly, but it
         (max (or max 999999999999))
         articles)
     (gnus-summary-ext-iterate-articles-safely
-     gnus-newsgroup-articles
+     (mapcar 'car gnus-newsgroup-data)
      (article-goto-body)
      (let ((size (buffer-size)))
        (when (and (>= size min) (<= size max))
@@ -472,7 +472,7 @@ To limit to unreplied messages that are matched by either of the saved filters '
                           collect (list name nil code)))
       (let (filtered)
         (gnus-summary-ext-iterate-articles-safely-1
-         gnus-newsgroup-articles
+         (mapcar 'car gnus-newsgroup-data)
          (let* ((data (assq article gnus-newsgroup-data))
                 (hdr (gnus-data-header data)))
            (when ,expr (push article filtered))))
