@@ -46,8 +46,6 @@ Below is a complete command list:
 - gnus-summary-ext-act-on-parts-in-marked
    Do something with all MIME parts in articles that are process/prefixed.
 
-
-
 * Installation
 
  - If you have [[http://www.marmalade-repo.org/][marmalade-repo.org]], this gnus-summary-ext is part of the emacs packages you can install.  
