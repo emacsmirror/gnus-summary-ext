@@ -30,21 +30,23 @@ details.
 Below is a complete command list:
 
 - gnus-summary-ext-limit-to-mime-type
-  Limit the summary buffer to articles containing MIME parts with types matching REGEX.
-- gnus-summary-ext-apply-to-marked-safely
-  Evaluate any lisp expression for all articles that are process/prefixed.
-- gnus-summary-ext-apply-to-marked
-  Evaluate any lisp expression for all articles that are process/prefixed.
+   Limit the summary buffer to articles containing MIME parts with types matching REGEX.
 - gnus-summary-ext-limit-to-num-parts
-  Limit the summary buffer to articles containing between MIN & MAX attachments.
+   Limit the summary buffer to articles containing between MIN & MAX attachments.
 - gnus-summary-ext-limit-to-size
-  Limit the summary buffer to articles of size between MIN and MAX bytes.
+   Limit the summary buffer to articles of size between MIN and MAX bytes.
 - gnus-summary-ext-limit-to-filename
-  Limit the summary buffer to articles containing attachments with names matching REGEX.
-- gnus-summary-ext-mime-action-on-parts
-  Do something with all MIME parts in the current buffer for which PRED evaluates to non-nil.    
+   Limit the summary buffer to articles containing attachments with names matching REGEX.
+- gnus-summary-ext-limit-filter
+   Limit the summary buffer to articles which match filter expression.
+- gnus-summary-ext-apply-to-marked-safely
+   Evaluate any lisp expression for all articles that are process/prefixed.
+- gnus-summary-ext-apply-to-marked
+   Evaluate any lisp expression for all articles that are process/prefixed.
 - gnus-summary-ext-act-on-parts-in-marked
-  Do something with all MIME parts in articles that are process/prefixed.
+   Do something with all MIME parts in articles that are process/prefixed.
+
+
 
 * Installation
 
