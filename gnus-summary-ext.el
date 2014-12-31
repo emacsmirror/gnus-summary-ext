@@ -514,8 +514,8 @@ regexp's are in the correct order.
 The return value will be a list of strings and rectangles (lists of strings) corresponding to the arguments supplied
  (in the same order)."
   (loop for region in regions
-        if (stringp region) collect (progn (re-search-forward region)
-                                           (match-string 1))
+        if (stringp region) collect (if (re-search-forward region nil t)
+                                        (match-string 1))
         else collect (let* ((start (first region))
                             (end (second region))
                             (sbeg (third region))
@@ -524,17 +524,18 @@ The return value will be a list of strings and rectangles (lists of strings) cor
                             (startmatch (if sbeg 'match-beginning 'match-end))
                             (endmatch (if ebeg 'match-beginning 'match-end))
                             (startpos (if (numberp start) start
-                                        (re-search-forward start)
-                                        (if (matching-substring 1)
-                                            (funcall startmatch 1)
-                                          (funcall startmatch 0))))
+                                        (and (re-search-forward start nil t)
+                                             (if (matching-substring 1)
+                                                 (funcall startmatch 1)
+                                               (funcall startmatch 0)))))
                             (endpos (if (numberp end) end
-                                      (re-search-forward end)
-                                      (if (matching-substring 1)
-                                          (funcall endmatch 1)
-                                        (funcall endmatch 0)))))
-                       (if rectp (extract-rectangle startpos endpos)
-                         (buffer-substring-no-properties startpos endpos)))))
+                                      (and (re-search-forward end nil t)
+                                           (if (matching-substring 1)
+                                               (funcall endmatch 1)
+                                             (funcall endmatch 0))))))
+                       (if (and startpos endpos)
+                           (if rectp (extract-rectangle startpos endpos)
+                             (buffer-substring-no-properties startpos endpos))))))
 
 (provide 'gnus-summary-ext)
 
