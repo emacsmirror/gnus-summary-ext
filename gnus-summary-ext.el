@@ -317,7 +317,7 @@ Lisp expression %s: ")
                             (format msg "matching parts (default matches all parts)")
                             nil nil nil 'read-expression-history)))
                   (if (equal val "") t (read val)))))
-     (list action arg pred noprompt noerror)))
+     (list action arg2 pred noprompt noerror)))
   (gnus-article-check-buffer)
   (let* ((action-pair (assoc action gnus-mime-action-alist))
          (n 2))
@@ -536,6 +536,8 @@ The return value will be a list of strings and rectangles (lists of strings) cor
                        (if (and startpos endpos)
                            (if rectp (extract-rectangle startpos endpos)
                              (buffer-substring-no-properties startpos endpos))))))
+
+
 
 (provide 'gnus-summary-ext)
 
