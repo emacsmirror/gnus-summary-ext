@@ -281,9 +281,10 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
 ;;;###autoload
 ;; simple-call-tree-info: CHECK  
 (defun* gnus-summary-ext-mime-action-on-parts (action &optional arg (pred t) noprompt noerror)
-  "Do something with all MIME parts in the current buffer for which PRED evaluates to non-nil.
-PRED should be a form that evaluates to non-nil for parts to be acted on.
-By default PRED is t, and so all parts are acted on.
+  "Perform ACTION on all MIME parts in the current buffer for which PRED evaluates to non-nil.
+ARG is an optional argument for the ACTION function (a member of `gnus-mime-action-alist').
+PRED should be a form that evaluates to non-nil for the parts to be acted on (by default PRED
+is t, and so all parts are acted on).
 PRED will be placed within a let form where handle is bound to the handle for the part,
 size is the number of chars in the part, type is the MIME type (e.g. \"image/png\"),
 subtype is the subtype (e.g. \"png\"), supertype is the supertype (e.g. \"image\"),
