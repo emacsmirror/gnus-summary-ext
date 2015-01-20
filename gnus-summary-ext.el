@@ -127,13 +127,26 @@
 
 ;; simple-call-tree-info: DONE
 (defcustom gnus-summary-ext-saved-filters nil
-  "An alist of named filters that can be used with `gnus-summary-ext-limit-filter'.
-The car of each item is a symbol naming the filter, and the cdr is an expression which can be passed to
- `gnus-summary-ext-limit-filter' (which see). The expression may utilize any of the functions defined by
- `gnus-summary-ext-limit-filter' and/or other named filters (which should be enclosed in parentheses,
-e.g. (filter))."
+  "A list of named filters that can be used with `gnus-summary-ext-limit-filter'.
+Each element has the form (NAME ARGLIST EXPRESSION [EXPRESSION ...]).
+
+NAME is a symbol naming the filter.
+
+ARGLIST is a list whose elements have the form (ARGUMENT
+DEFAULT-VALUE). These variables are available when evaluating
+the expressions.
+
+EXPRESSION are elisp forms. They are wrapped in a `progn' and
+compose the body of the filter. This body is executed when the
+filter is called by name --e.g. (filter)-- as part of
+`gnus-summary-ext-limit-filter' (which see)."
   :group 'gnus-summary-ext
-  :type  '(alist :key-type symbol :value-type sexp))
+  :type  '(repeat (cons (symbol :tag "Filter name")
+                        (cons
+                         (repeat :tag "Argument list"
+                                 (list (symbol :tag "Argument name")
+                                       (sexp :tag "Default value")))
+                         (repeat (sexp :tag "Expression"))))))
 
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-match-mime-types (regex)
@@ -470,6 +483,9 @@ To limit to unreplied messages that are matched by either of the saved filters '
                (recipient (regexp) (or (to regexp) (cc regexp)))
                (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
                ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
+                          if (> (length code) 1)
+                          collect `(,name (&optional ,@(car code)) ,@(cdr code))
+                          else
                           collect (list name nil code)))
       (let (filtered)
         (gnus-summary-ext-iterate-articles-safely-1
