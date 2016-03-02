@@ -293,7 +293,7 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
 
 ;;;###autoload
 ;; simple-call-tree-info: CHECK  
-(defun* gnus-summary-ext-mime-action-on-parts (action &optional arg (pred t) noprompt noerror)
+(cl-defun gnus-summary-ext-mime-action-on-parts (action &optional arg (pred t) noprompt noerror)
   "Perform ACTION on all MIME parts in the current buffer for which PRED evaluates to non-nil.
 ARG is an optional argument for the ACTION function (a member of `gnus-mime-action-alist').
 PRED should be a form that evaluates to non-nil for the parts to be acted on (by default PRED
@@ -435,10 +435,11 @@ To limit to unreplied messages that are matched by either of the saved filters '
   (gnus-summary-ext-limit-filter '(and (unreplied) (or (work) (friends))))
 "
   (interactive (list (read-from-minibuffer
-                      "Filter expression (press up/down to see previous/saved filters): "
-                      nil nil t 'read-expression-history
-                      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
-                              gnus-summary-ext-saved-filters))))
+		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (pred FUNC), (content REGEX), (header HD REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
+Filter expression (press up/down to see previous/saved filters): "
+		      nil nil t 'read-expression-history
+		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
+			      gnus-summary-ext-saved-filters))))
   (eval
    `(cl-flet* ((pred (func)
                      (gnus-summary-select-article t t nil article)
