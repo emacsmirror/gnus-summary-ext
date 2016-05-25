@@ -343,7 +343,7 @@ Lisp expression %s: ")
                   (if (equal val "") t (read val)))))
      (list action arg2 pred noprompt noerror)))
   (gnus-article-check-buffer)
-  (let* ((action-pair (rassoc action gnus-mime-action-alist))
+  (let* ((action-pair (rassq action gnus-mime-action-alist))
          (n 2))
     (if action-pair
         (while (gnus-article-goto-part n)
@@ -441,7 +441,7 @@ each article:
 
  (pred FUNC)     : matches articles for which function FUNC returns non-nil after selecting the article
  (content REGEXP)  : matches articles containing text that matches REGEXP 
- (header HD REGEXP) : matches articles with headers matching HD (a regular expression), whose values match REGEXP
+ (header HD REGEXP) : matches articles whose HD header matches REGEXP
  (filename REGEXP) : matches articles containing file attachments whose names match REGEXP
  (mimetype REGEXP) : matches articles containing mime parts with type names matching REGEXP
  (numparts MIN MAX) : matches articles with between MIN and MAX parts/attachments (inclusive).
@@ -519,7 +519,6 @@ Filter expression (press up/down to see previous/saved filters): "
         (if (not filtered) (message "No messages matched"))
 	(gnus-summary-limit filtered))))
   (gnus-summary-position-point))
-
 
 ;; simple-call-tree-info: CHECK  
 (defun gnus-summary-ext-extract-text (&rest regions)
