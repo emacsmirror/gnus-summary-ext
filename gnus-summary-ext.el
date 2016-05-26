@@ -417,6 +417,60 @@ Lisp expression %s: ")
    arg `(gnus-summary-ext-mime-action-on-parts ',action ',arg2 ',pred ,noprompt ,noerror)))
 
 ;;;###autoload
+(defun gnus-summary-ext-fetch-field (field-regex &optional last all list)
+  "Same as `mail-fetch-field' but match field name by regular expression instead of string.
+FIELD-REGEX is a regular expression matching the field name, LAST ALL and LIST are the
+same as in `mail-fetch-field'."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((case-fold-search t)
+	  (name (concat "^" field-regex "[ \t]*:[ \t]*")))
+      (if (or all list)
+	  (let ((value (if all "")))
+	    (while (re-search-forward name nil t)
+	      (let ((opoint (point)))
+		(while (progn (forward-line 1)
+			      (looking-at "[ \t]")))
+		;; Back up over newline, then trailing spaces or tabs
+		(forward-char -1)
+		(skip-chars-backward " \t" opoint)
+		(if list
+		    (setq value (cons (buffer-substring-no-properties
+				       opoint (point))
+				      value))
+		  (setq value (concat value
+				      (if (string= value "") "" ", ")
+				      (buffer-substring-no-properties
+				       opoint (point)))))))
+	    (if list
+		value
+	      (and (not (string= value "")) value)))
+	(if (re-search-forward name nil t)
+	    (progn
+	      (if last (while (re-search-forward name nil t)))
+	      (let ((opoint (point)))
+		(while (progn (forward-line 1)
+			      (looking-at "[ \t]")))
+		;; Back up over newline, then trailing spaces or tabs
+		(forward-char -1)
+		(skip-chars-backward " \t" opoint)
+		(buffer-substring-no-properties opoint (point)))))))))
+
+(defun gnus-summary-ext-field-value (header-regex &optional not-all)
+  "The same as `message-fetch-value', but match field name by regular expression instead of string.
+HEADER-REGEX is a regular expression matching the header name.
+If NOT-ALL is non-nil then only the first matching header is returned."
+  (save-excursion
+    (save-restriction
+      (message-narrow-to-headers-or-head)
+      (let* ((inhibit-point-motion-hooks t)
+	     (value (gnus-summary-ext-fetch-field header-regex nil (not not-all))))
+	(when value
+	  (while (string-match "\n[\t ]+" value)
+	    (setq value (replace-match " " t t value)))
+	  value)))))
+
+;;;###autoload
 ;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-limit-filter (expr)
   "Limit the summary buffer to articles which match EXPR.
@@ -444,7 +498,7 @@ each article:
  (witharticle PRED)     : matches articles for which PRED returns non-nil after selecting article buffer
  (withorigarticle PRED) : matches articles for which PRED returns non-nil after selecting original (unformatted) article buffer
  (content REGEXP)  : matches articles containing text that matches REGEXP 
- (header HD REGEXP) : matches articles whose HD header matches REGEXP
+ (header HDRX REGEXP) : matches articles containing a header matching HDRX whose value matches REGEXP
  (filename REGEXP) : matches articles containing file attachments whose names match REGEXP
  (mimetype REGEXP) : matches articles containing mime parts with type names matching REGEXP
  (numparts MIN MAX) : matches articles with between MIN and MAX parts/attachments (inclusive).
@@ -458,7 +512,7 @@ For example, to limit to messages received within the last week, either from ali
 To limit to unreplied messages that are matched by either of the saved filters 'work' or 'friends':
   (gnus-summary-ext-limit-filter '(and (unreplied) (or (work) (friends))))"
   (interactive (list (read-from-minibuffer
-		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HD REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
+		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HDRX REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
 Filter expression (press up/down to see previous/saved filters): "
 		      nil nil t 'read-expression-history
 		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
@@ -471,10 +525,9 @@ Filter expression (press up/down to see previous/saved filters): "
                (content (regexp) (witharticle (lambda nil
 						(article-goto-body)
 						(re-search-forward regexp nil t))))
-	       (header (hd regexp) (withorigarticle (lambda nil
-						      (message-narrow-to-headers-or-head)
-						      (let ((str (message-fetch-field hd)))
-							(if str (string-match regexp str))))))
+	       (header (hdrx regexp) (withorigarticle (lambda nil
+							(let ((str (gnus-summary-ext-field-value hdrx)))
+							  (if str (string-match regexp str))))))
 	       (from (regexp) (string-match regexp (mail-header-from hdr)))
 	       (age (days) (let* ((younger (< days 0))
 				  (days (abs days))
@@ -495,9 +548,16 @@ Filter expression (press up/down to see previous/saved filters): "
 	       (unread nil (not (read)))
 	       (replied nil (memq article gnus-newsgroup-replied))
 	       (unreplied nil (not (replied)))
-	       (filename (regexp) (content (concat "Content-Disposition: attachment; filename=" regexp)))               
-	       (mimetype (regexp) (content (concat "Content-Type: "
-						   (regexp-opt (gnus-summary-ext-match-mime-types regexp)))))
+	       (filename (regexp) (withorigarticle (lambda nil
+						     (re-search-forward
+						      (concat "Content-Disposition: attachment; filename=" regexp)
+						      nil t))))
+	       (mimetype (regexp)
+			 (withorigarticle (lambda nil
+					    (re-search-forward
+					     (content (concat "Content-Type: "
+							      (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
+					     nil t))))
 	       (numparts (min &optional max) (witharticle (lambda nil
 							    (let ((num (gnus-summary-ext-count-parts)))
 							      (and (>= num min) (if max (<= num max) t))))))
