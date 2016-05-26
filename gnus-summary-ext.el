@@ -41,12 +41,14 @@
 ;;
 ;; Bitcoin donations gratefully accepted: 16mhw12vvtzCwQyvvLAqCSBvf8i41CfKhK
 ;;
-;; This library provides extra limit commands for filtering the gnus summary buffer,
-;; some commands for performing actions on MIME parts in articles, and some general
-;; functions for evaluating elisp code in marked articles.
+;; This library provides extra commands for filtering and applying process marks to
+;; articles in the gnus summary buffer, some commands for performing actions on MIME
+;; parts in articles, and some general functions for evaluating elisp code in marked articles.
 
 ;; You can apply complex filters for filtering the messages displayed in the *Summary* buffer
-;; using `gnus-summary-ext-limit-filter', and you can save these filters in `gnus-summary-ext-saved-filters'.
+;; using `gnus-summary-ext-limit-filter', or apply the process mark to such articles with
+;; `gnus-summary-ext-uu-mark-filter'.
+;; You can save these filters in `gnus-summary-ext-saved-filters'.
 
 ;; See the documentation of the individual commands & functions for more
 ;; details.
@@ -66,6 +68,8 @@
 ;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
 ;;  `gnus-summary-ext-limit-filter'
 ;;    Limit the summary buffer to articles which match filter expression.
+;;  `gnus-summary-ext-uu-mark-filter' 
+;;    Apply process mark to all articles in the summary buffer which match filter expression.
 ;;  `gnus-summary-ext-apply-to-marked-safely'
 ;;    Evaluate any lisp expression for all articles that are process/prefixed.
 ;;  `gnus-summary-ext-apply-to-marked'
@@ -417,6 +421,7 @@ Lisp expression %s: ")
    arg `(gnus-summary-ext-mime-action-on-parts ',action ',arg2 ',pred ,noprompt ,noerror)))
 
 ;;;###autoload
+;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-fetch-field (field-regex &optional last all list)
   "Same as `mail-fetch-field' but match field name by regular expression instead of string.
 FIELD-REGEX is a regular expression matching the field name, LAST ALL and LIST are the
@@ -456,6 +461,8 @@ same as in `mail-fetch-field'."
 		(skip-chars-backward " \t" opoint)
 		(buffer-substring-no-properties opoint (point)))))))))
 
+;;;###autoload
+;; simple-call-tree-info: DONE
 (defun gnus-summary-ext-field-value (header-regex &optional not-all)
   "The same as `message-fetch-value', but match field name by regular expression instead of string.
 HEADER-REGEX is a regular expression matching the header name.
@@ -472,8 +479,8 @@ If NOT-ALL is non-nil then only the first matching header is returned."
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
-(defun gnus-summary-ext-limit-filter (expr)
-  "Limit the summary buffer to articles which match EXPR.
+(defun gnus-summary-ext-filter (expr)
+  "Return list of article numbers of articles in summary buffer which match EXPR.
 EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
 It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
 in parentheses, e.g: (filter)), and any of the following functions:
@@ -506,17 +513,11 @@ each article:
  (size MIN MAX) : matches articles of approximate size between MIN & MAX bytes. 
                   If MAX is omitted then just check if size is bigger than MIN bytes
 
-For example, to limit to messages received within the last week, either from alice or sent to bob:
-  (gnus-summary-ext-limit-filter '(and (age -7) (or (from \"alice\") (to \"bob\"))))
+For example, to filter messages received within the last week, either from alice or sent to bob:
+  (gnus-summary-ext-filter '(and (age -7) (or (from \"alice\") (to \"bob\"))))
 
-To limit to unreplied messages that are matched by either of the saved filters 'work' or 'friends':
-  (gnus-summary-ext-limit-filter '(and (unreplied) (or (work) (friends))))"
-  (interactive (list (read-from-minibuffer
-		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HDRX REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
-Filter expression (press up/down to see previous/saved filters): "
-		      nil nil t 'read-expression-history
-		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
-			      gnus-summary-ext-saved-filters))))
+To filter unreplied messages that are matched by either of the saved filters 'work' or 'friends':
+  (gnus-summary-ext-filter '(and (unreplied) (or (work) (friends))))"
   (eval
    `(cl-flet* ((witharticle (pred) (gnus-summary-select-article t t nil article)
 			    (with-current-buffer gnus-article-buffer (funcall pred)))
@@ -582,8 +583,44 @@ Filter expression (press up/down to see previous/saved filters): "
 	 (let* ((data (assq article gnus-newsgroup-data))
 		(hdr (gnus-data-header data)))
 	   (when ,expr (push article filtered))))
-	(if (not filtered) (message "No messages matched"))
-	(gnus-summary-limit filtered))))
+	filtered))))
+
+;;;###autoload
+;; simple-call-tree-info: DONE
+(defun gnus-summary-ext-limit-filter (expr)
+  "Limit the summary buffer to articles which match EXPR.
+EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
+It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
+in parentheses, e.g: (filter)), and any of the builtin functions as described in `gnus-summary-ext-filter'."
+  (interactive (list (read-from-minibuffer
+		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HDRX REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
+Filter expression (press up/down to see previous/saved filters): "
+		      nil nil t 'read-expression-history
+		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
+			      gnus-summary-ext-saved-filters))))
+  (let ((filtered (gnus-summary-ext-filter expr)))
+    (if (not filtered) (message "No messages matched"))
+    (gnus-summary-limit filtered))
+  (gnus-summary-position-point))
+
+;;;###autoload
+;; simple-call-tree-info: DONE
+(defun gnus-summary-ext-uu-mark-filter (expr)
+  "Apply process mark to all articles in the summary buffer which match EXPR.
+EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
+It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
+in parentheses, e.g: (filter)), and any of the builtin functions as described in `gnus-summary-ext-filter'."
+  (interactive (list (read-from-minibuffer
+		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HDRX REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
+Filter expression (press up/down to see previous/saved filters): "
+		      nil nil t 'read-expression-history
+		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
+			      gnus-summary-ext-saved-filters))))
+  (let ((filtered (gnus-summary-ext-filter expr)))
+    (if (not filtered)
+	(message "No messages matched")
+      (dolist (num filtered)
+	(gnus-summary-set-process-mark num))))
   (gnus-summary-position-point))
 
 ;; simple-call-tree-info: CHECK  

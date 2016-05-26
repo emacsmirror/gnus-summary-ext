@@ -39,6 +39,8 @@ Below is a complete command list:
    Limit the summary buffer to articles containing attachments with names matching REGEX.
 - gnus-summary-ext-limit-filter
    Limit the summary buffer to articles which match filter expression.
+- gnus-summary-ext-uu-mark-filter
+   Apply process mark to all articles in the summary buffer which match filter expression.
 - gnus-summary-ext-apply-to-marked-safely
    Evaluate any lisp expression for all articles that are process/prefixed.
 - gnus-summary-ext-apply-to-marked
