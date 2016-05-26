@@ -605,8 +605,9 @@ Filter expression (press up/down to see previous/saved filters): "
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
-(defun gnus-summary-ext-uu-mark-filter (expr)
-  "Apply process mark to all articles in the summary buffer which match EXPR.
+(defun gnus-summary-ext-uu-mark-filter (expr &optional arg)
+  "Apply/remove process mark to all articles in the summary buffer which match EXPR.
+If ARG is non-nil or a prefix arg is used then remove marks.
 EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
 It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
 in parentheses, e.g: (filter)), and any of the builtin functions as described in `gnus-summary-ext-filter'."
@@ -615,12 +616,15 @@ in parentheses, e.g: (filter)), and any of the builtin functions as described in
 Filter expression (press up/down to see previous/saved filters): "
 		      nil nil t 'read-expression-history
 		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
-			      gnus-summary-ext-saved-filters))))
+			      gnus-summary-ext-saved-filters))
+		     current-prefix-arg))
   (let ((filtered (gnus-summary-ext-filter expr)))
     (if (not filtered)
 	(message "No messages matched")
-      (dolist (num filtered)
-	(gnus-summary-set-process-mark num))))
+      (if arg
+	  (apply 'gnus-summary-remove-process-mark filtered)
+	(dolist (num filtered)
+	  (gnus-summary-set-process-mark num)))))
   (gnus-summary-position-point))
 
 ;; simple-call-tree-info: CHECK  
