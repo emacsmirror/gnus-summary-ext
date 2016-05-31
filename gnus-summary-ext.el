@@ -192,7 +192,7 @@ Within BODY you can use the variable `article' to reference the current article 
 Within BODY you can use the variable `article' to reference the current article number.
 All hooks will be disabled before selecting each article."
   `(gnus-summary-ext-iterate-articles-safely-1
-    articles
+    ,articles
     (gnus-summary-select-article t t nil article)
     (with-current-buffer gnus-article-buffer
       ,@body)))
@@ -201,8 +201,9 @@ All hooks will be disabled before selecting each article."
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-apply-to-marked-safely (arg sexp)
   "Evaluate any lisp expression for all articles that are process/prefixed.
-If ARG is non-nil it indicates how many articles forward (if positive) or 
-backward (if negative) from the current article to include. 
+If no articles are marked use the article at point or articles in region, 
+and if ARG is non-nil include that many articles forward (if positive) or 
+backward (if negative) from the current article. 
 This will evaluate SEXP after selecting each article, but will not run any hooks.
 
 See `gnus-summary-apply-to-marked' if you want to run the appropriate hooks after
@@ -221,9 +222,9 @@ without selecting them."
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-apply-to-marked (arg sexp)
   "Evaluate any lisp expression for all articles that are process/prefixed.
-If ARG is non-nil or a prefix arg is supplied it indicates how many articles forward (if positive) or 
-backward (if negative) from the current article to include. Otherwise if region is active, process
-the articles within the region, otherwise process the process marked articles.
+If no articles are marked use the article at point or articles in region, 
+and if ARG is non-nil include that many articles forward (if positive) or 
+backward (if negative) from the current article. 
 This will evaluate SEXP after selecting each article, and running any hooks.
 
 See `gnus-summary-ext-apply-to-marked-safely' for selecting each article without running hooks,
@@ -627,60 +628,19 @@ Filter expression (press up/down to see previous/saved filters): "
 	  (gnus-summary-set-process-mark num)))))
   (gnus-summary-position-point))
 
-;; simple-call-tree-info: CHECK  
-(defun gnus-summary-ext-extract-text (&rest regions)
-  "Extract text regions/rectangles from current buffer, and return them in a list.
-Each argument defines a region or rectangle and should be either a regexp containing a grouping construct
- (e.g. \"Phone number: \\([0-9]+\\)\") matching text to be extracted, or a list of upto 5 elements in the
-following order:
+;;;###autoload
+;; (defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
+;;   "Extract text from process marked according to SPEC."
+;;   (interactive (append current-prefix-arg
+;; 		       (extract-text-choose-prog)
+;; 		       (extract-text-choose-export-args)))
+;;   (let (results)
+;;     (gnus-summary-ext-apply-to-marked-safely arg '()))
 
- 1) A position (number) or a regexp indicating the start position of the region/rectangle
- 2) A position (number) or a regexp indicating the end position of the region/rectangle
- 3) Optional element - if non-nil then start at the beginning of the regexp match supplied in 1)
-    (default is to start at the end of the match)
- 4) Optional element - if non-nil then end at the beginning of the regexp match supplied in 2)
-    (default is to end at the end of the match)
- 5) Optional element - if non-nil then 1 & 2 define a rectangle, otherwise they define a region (default)
+;;   (extract-text-process-results results postproc export convfn params)
 
-If a regexp is supplied for 1) or 2) and it contains a grouping construct then the first (non-shy) grouping construct
-will be used to define the start/end positions instead of the whole regexp (thus allowing you to add some context to
-matches).
+;;   )
 
-Some examples:
-  \"Phone number: \\\\([0-9]+\\\\)\" = matches the first number following \"Phone number: \"
-  '(100 200) = matches the text between positions 100 and 200
-  '(\"Shipping address\" \"Phone number: +\" t nil t) = matches the rectangle defined between the start of
-                                                        \"Shipping address\" and the end of \"Phone number: +\"
-
-The regions/rectangles will be extracted in order, and for regexp matches `re-search-forward' will be used from
-the point at which the previous match ended. This means that you need to ensure that function arguments containing
-regexp's are in the correct order.
-
-The return value will be a list of strings and rectangles (lists of strings) corresponding to the arguments supplied
- (in the same order)."
-  (loop for region in regions
-        if (stringp region) collect (if (re-search-forward region nil t)
-                                        (match-string 1))
-        else collect (let* ((start (first region))
-                            (end (second region))
-                            (sbeg (third region))
-                            (ebeg (fourth region))
-                            (rectp (fifth region))
-                            (startmatch (if sbeg 'match-beginning 'match-end))
-                            (endmatch (if ebeg 'match-beginning 'match-end))
-                            (startpos (if (numberp start) start
-                                        (and (re-search-forward start nil t)
-                                             (if (matching-substring 1)
-                                                 (funcall startmatch 1)
-                                               (funcall startmatch 0)))))
-                            (endpos (if (numberp end) end
-                                      (and (re-search-forward end nil t)
-                                           (if (matching-substring 1)
-                                               (funcall endmatch 1)
-                                             (funcall endmatch 0))))))
-                       (if (and startpos endpos)
-                           (if rectp (extract-rectangle startpos endpos)
-                             (buffer-substring-no-properties startpos endpos))))))
 
 
 
