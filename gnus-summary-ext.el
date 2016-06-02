@@ -407,7 +407,7 @@ The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and e
 
 ;;;###autoload
 ;; simple-call-tree-info: CHECK  
-(cl-defun gnus-summary-ext-act-on-parts-in-marked (arg &optional action arg2 (pred t) noprompt noerror)
+(cl-defun gnus-summary-ext-act-on-parts-in-marked (actions &optional noprompt noerror arg)  
   "Do something with all MIME parts in articles that are process/prefixed.
 If ARG is non-nil or a prefix arg is supplied it indicates how many articles forward (if positive) or 
 backward (if negative) from the current article to include. Otherwise if region is active, process
@@ -416,10 +416,10 @@ Only MIME parts for which PRED evaluates to non-nil will be acted on. In which c
 specified by ACTION will be applied with argument ARG2. If NOPROMPT and NOERROR are non-nil then
 prompts and errors will be ignored. See `gnus-summary-ext-mime-action-on-parts' for more details.
 This command just applies that function to the articles."
-  (interactive (cons current-prefix-arg (gnus-summary-ext-mime-action-prompt)))
+  (interactive (let ((all (gnus-summary-ext-mime-actions-prompt)))
+		 (list (cddr all) (first all) (second all) current-prefix-arg)))
   (gnus-summary-ext-apply-to-marked
-   arg `(gnus-summary-ext-mime-action-on-parts
-	 ',action ,arg2 (lambda nil ,pred) ,noprompt ,noerror)))
+   arg `(gnus-summary-ext-mime-actions-on-parts ',actions ,noprompt ,noerror)))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
