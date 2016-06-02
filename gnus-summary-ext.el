@@ -240,10 +240,12 @@ and see `gnus-summary-iterate' for iterating over articles without selecting the
 (defun gnus-summary-ext-count-parts nil
   "Count the number of parts in an article.
 This must be called from within the *Article* buffer."
-  (- (length (or gnus-article-mime-handles
-                 (mm-dissect-buffer nil gnus-article-loose-mime)
-                 (and gnus-article-emulate-mime
-                      (mm-uu-dissect)))) 2))
+  (let ((handles (or gnus-article-mime-handles
+		     (mm-dissect-buffer nil gnus-article-loose-mime)
+		     (and gnus-article-emulate-mime
+			  (mm-uu-dissect)))))
+    (prog1 (- (length handles) 2)
+      (mm-destroy-parts handles))))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE  
@@ -304,73 +306,104 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
    (concat "Content-Disposition: attachment; filename=" regex) reverse))
 
 ;;;###autoload
+(defcustom gnus-summary-ext-mime-actions nil
+  "A list of sets of actions to apply to different mime types.
+Each set is a list whose car is a description of the set, and whose cdr is a list
+of sublists indicating what to do with a particular mime type. Each sublist contains
+the following items:
+ 1) a predicate function evaluating to true if the mime type matches. It may make use
+    of the following variables: handle : the handle for the part, size : number of chars in the part, 
+    type : the MIME type (e.g. \"image/png\"), subtype : the subtype (e.g. \"png\"), 
+    supertype : the supertype (e.g. \"image\"), filename : the filename.
+ 2) an action function (one of the functions listed in `gnus-mime-action-alist')
+ 3) an optional argument for the function (currently only used with `gnus-mime-pipe-part')."
+  :group 'gnus-summary-ext
+  :type `(repeat (list (string :tag "Description")
+		       (repeat
+			(list (function :tag "Predicate function" :value "(lambda nil t)")
+			      (choice ,@(mapcar (lambda (elem) (list 'const (cdr elem)))
+						gnus-mime-action-alist))
+			      (string :tag "Argument"))))))
+
+;;;###autoload
 ;; simple-call-tree-info: CHECK  
-(cl-defun gnus-summary-ext-mime-action-on-parts (action &optional arg (pred t) noprompt noerror)
+(defun gnus-summary-ext-mime-actions-prompt nil
+  "Prompt user for an item from `gnus-summary-ext-mime-actions', or create a new one.
+Also prompts for whether to ignore confirmation prompts and errors.
+Returns a list containing a pair of booleans indicating whether to ignore prompts and errors
+respectively, followed by lists of predicates actions and arguments indicating how to 
+act on different mime types."
+  (let* ((newdesc "DEFINE NEW")
+	 (desc (ido-completing-read
+		"Mime action: "
+		(cons newdesc (mapcar 'car gnus-summary-ext-mime-actions))))
+	 (msg "Available vars: handle = handle for part, size = No. of chars in part, type = MIME type (e.g. \"image/png\"), 
+	 subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\"), filename = the name of the attached file
+	 Lisp expression %s: ")
+	 (continue t)
+	 val pred action arg
+	 results)
+    (if (equal desc newdesc)
+	(while continue
+	  (setq val (read-from-minibuffer
+		     (format msg "matching parts (default matches all parts)")
+		     nil nil nil 'read-expression-history)
+		pred (if (equal val "") t (read val))
+		action (let ((name (gnus-completing-read
+				    "Action" (mapcar 'car gnus-mime-action-alist) t)))
+			 (cdr (assoc name gnus-mime-action-alist)))
+		val (if (eq action 'gnus-mime-pipe-part)
+			(read-from-minibuffer
+			 (format msg "evaluating to command to pipe part to")
+			 nil nil nil 'read-expression-history))
+		arg (if (or (not val) (equal val "")) nil (read val))
+		continue (y-or-n-p "Another?"))
+	  (push (list pred action arg) results))
+      (setq results (cadr (assoc-string desc gnus-summary-ext-mime-actions))))
+    (append (list (y-or-n-p "Ignore confirmation prompts?")
+		  (y-or-n-p "Ignore errors?")) results)))
+
+;;;###autoload
+(cl-defun gnus-summary-ext-mime-actions-on-parts (actions &optional noprompt noerror)
   "Perform ACTION on all MIME parts in the current buffer for which PRED evaluates to non-nil.
-ARG is an optional argument for the ACTION function (a member of the cdr's of `gnus-mime-action-alist').
-PRED should be a form that evaluates to non-nil for the parts to be acted on (by default PRED
-is t, and so all parts are acted on).
-PRED will be placed within a let form where handle is bound to the handle for the part,
-size is the number of chars in the part, type is the MIME type (e.g. \"image/png\"),
-subtype is the subtype (e.g. \"png\"), supertype is the supertype (e.g. \"image\"),
-and filename is the filename.
+ARG is an optional argument for the ACTION function (a member of the cdr's of `gnus-mime-action-alist'), 
+or a form which evaluates to the required argument when point is on the mime part.
+PRED should be a function that evaluates to non-nil for the parts to be acted on, (by default 
+all parts are acted on).
+Both PRED and ARG may make use of the following let-bound variables:
+ handle : the handle for the part,
+ size : number of chars in the part, 
+ type : the MIME type (e.g. \"image/png\"),
+ subtype : the subtype (e.g. \"png\"), 
+ supertype : the supertype (e.g. \"image\"),
+ filename : the filename.
+When called interactively forms for ARG and PRED will be prompted for, and PRED will then be wrapped
+into a lambda function.
 
 The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and errors respectively."
-  (interactive
-   (let* ((action (let ((name (gnus-completing-read "Action" (mapcar 'car gnus-mime-action-alist) t)))
-		    (cdr (assoc name gnus-mime-action-alist))))
-          (msg "Variables available in lisp expression:
-handle = handle for part, size = No. of chars in part, type = MIME type (e.g. \"image/png\")
-subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\"),
-filename = the name of the attached file
-
-Lisp expression %s: ")
-          (noprompt (y-or-n-p "Ignore prompts?"))
-          (noerror (y-or-n-p "Ignore errors?"))
-	  (arg2 (if (and noprompt
-                         (memq action '(gnus-mime-save-part
-					gnus-mime-save-part-and-strip gnus-mime-replace-part
-					gnus-mime-pipe-part gnus-mime-view-part-as-type)))
-                    (let ((val (read-from-minibuffer
-                                (format msg
-                                        (cond 
-                                         ((memq action '(gnus-mime-save-part gnus-mime-save-part-and-strip))
-                                          "evaluating to filepath to save part to")
-                                         ((eq action gnus-mime-replace-part)
-					  "evaluating to filepath for replacement")
-                                         ((eq action gnus-mime-pipe-part)
-					  "evaluating to command")
-                                         ((eq action gnus-mime-view-part-as-type)
-					  "evaluating to type")))
-                                nil nil nil 'read-expression-history)))
-                      (if (equal val "") nil (read val)))))
-          (pred (let ((val (read-from-minibuffer
-                            (format msg "matching parts (default matches all parts)")
-                            nil nil nil 'read-expression-history)))
-                  (if (equal val "") t (read val)))))
-     (list action arg2 pred noprompt noerror)))
+  (interactive (let ((all (gnus-summary-ext-mime-actions-prompt)))
+		 (list (cddr all) (first all) (second all))))
   (gnus-article-check-buffer)
-  (let* ((action-pair (rassq action gnus-mime-action-alist))
-         (n 2))
-    (if action-pair
-        (while (gnus-article-goto-part n)
-          (let* ((handle (get-text-property (point) 'gnus-data))
-                 (size (buffer-size (mm-handle-buffer handle)))
-                 (type (mm-handle-media-type handle))
-                 (subtype (mm-handle-media-subtype handle))
-                 (supertype (mm-handle-media-supertype handle))
-                 (filename (mm-handle-filename handle))
-                 (gnus-expert-user noprompt))
-            (if (eval pred)
-                (condition-case err
-                    (if arg
-                        (funcall (cdr action-pair) (eval arg))
-                      (funcall (cdr action-pair)))
-                  (error (if noerror
-                             (message "Error trying to apply action %s on part %d"
-				      (car action-pair) n)
-                           (signal (car err) (cdr err)))))))
-          (setq n (1+ n))))))
+  (let* ((n 2))
+    (while (gnus-article-goto-part n)
+      (let* ((handle (get-text-property (point) 'gnus-data))
+	     (size (buffer-size (mm-handle-buffer handle)))
+	     (type (mm-handle-media-type handle))
+	     (subtype (mm-handle-media-subtype handle))
+	     (supertype (mm-handle-media-supertype handle))
+	     (filename (mm-handle-filename handle))
+	     (gnus-expert-user noprompt)
+	     (continue t))
+	(cl-loop while continue
+		 for (pred action arg) in actions
+		 if (funcall pred)
+		 do (setq continue nil)
+		 (condition-case err
+		     (if (and arg (not (equal arg ""))) (funcall action arg) (funcall action))
+		   (error (if noerror
+			      (message "Error trying to apply action %s on part %d" action n)
+			    (signal (car err) (cdr err)))))))
+      (setq n (1+ n)))))
 
 ;;;###autoload
 ;; simple-call-tree-info: CHECK  
@@ -379,47 +412,14 @@ Lisp expression %s: ")
 If ARG is non-nil or a prefix arg is supplied it indicates how many articles forward (if positive) or 
 backward (if negative) from the current article to include. Otherwise if region is active, process
 the articles within the region, otherwise process the process marked articles.
-Only MIME parts for which PRED evaluates to non-nil will be acted on.
-See `gnus-summary-ext-mime-action-on-parts' for a description of the ACTION, PRED, NOPROMPT,
-and NOERROR args.
+Only MIME parts for which PRED evaluates to non-nil will be acted on. In which case the function
+specified by ACTION will be applied with argument ARG2. If NOPROMPT and NOERROR are non-nil then
+prompts and errors will be ignored. See `gnus-summary-ext-mime-action-on-parts' for more details.
 This command just applies that function to the articles."
-  (interactive
-   (let* ((action (let ((name (gnus-completing-read
-			       "Action"
-			       (mapcar 'car gnus-mime-action-alist) t)))
-		    (cdr (assoc name gnus-mime-action-alist))))
-	  (msg "Variables available in lisp expression:
-handle = handle for part, size = No. of chars in part, type = MIME type (e.g. \"image/png\")
-subtype = subtype (e.g. \"png\"), supertype = supertype (e.g. \"image\"),
-filename = the name of the attached file
-
-Lisp expression %s: ")
-	  (noprompt (y-or-n-p "Ignore prompts?"))
-	  (noerror (y-or-n-p "Ignore errors?"))
-	  (arg2 (if (and noprompt
-			 (memq action '(gnus-mime-save-part
-					gnus-mime-save-part-and-strip gnus-mime-replace-part
-					gnus-mime-pipe-part gnus-mime-view-part-as-type)))
-		    (let ((val (read-from-minibuffer
-				(format msg
-					(cond 
-					 ((memq action '(gnus-mime-save-part gnus-mime-save-part-and-strip))
-					  "evaluating to filepath to save part to")
-					 ((eq action gnus-mime-replace-part)
-					  "evaluating to filepath for replacement")
-					 ((eq action gnus-mime-pipe-part)
-					  "evaluating to command")
-					 ((eq action gnus-mime-view-part-as-type)
-					  "evaluating to type")))
-				nil nil nil 'read-expression-history)))
-		      (if (equal val "") nil (read val)))))
-	  (pred (let ((val (read-from-minibuffer
-			    (format msg "matching parts (default matches all parts)")
-			    nil nil nil 'read-expression-history)))
-		  (if (equal val "") t (read val)))))
-     (list current-prefix-arg action arg2 pred noprompt noerror)))
+  (interactive (cons current-prefix-arg (gnus-summary-ext-mime-action-prompt)))
   (gnus-summary-ext-apply-to-marked
-   arg `(gnus-summary-ext-mime-action-on-parts ',action ',arg2 ',pred ,noprompt ,noerror)))
+   arg `(gnus-summary-ext-mime-action-on-parts
+	 ',action ,arg2 (lambda nil ,pred) ,noprompt ,noerror)))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
@@ -595,7 +595,7 @@ It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which s
 in parentheses, e.g: (filter)), and any of the builtin functions as described in `gnus-summary-ext-filter'."
   (interactive (list (read-from-minibuffer
 		      "Available functions: (subject REGEX), (from REGEX), (to REGEX), (cc REGEX), (recipient REGEX), (address REGEX), (read), (unread), (replied), (unreplied), (age DAYS), (agebetween MIN MAX), (marks STR), (witharticle PRED), (withorigarticle PRED), (content REGEX), (header HDRX REGEX), (filename REGEX), (mimetype REGEX), (numparts MIN MAX), (size MIN MAX)
-Filter expression (press up/down to see previous/saved filters): "
+Filter expression (press up/down to see previous/saved filters):"
 		      nil nil t 'read-expression-history
 		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
 			      gnus-summary-ext-saved-filters))))
@@ -640,8 +640,6 @@ Filter expression (press up/down to see previous/saved filters): "
 ;;   (extract-text-process-results results postproc export convfn params)
 
 ;;   )
-
-
 
 
 (provide 'gnus-summary-ext)
