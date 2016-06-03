@@ -152,6 +152,26 @@ filter is called by name --e.g. (filter)-- as part of
                                        (sexp :tag "Default value")))
                          (repeat (sexp :tag "Expression"))))))
 
+;;;###autoload
+(defcustom gnus-summary-ext-mime-actions nil
+  "A list of sets of actions to apply to different mime types.
+Each set is a list whose car is a description of the set, and whose cdr is a list
+of sublists indicating what to do with a particular mime type. Each sublist contains
+the following items:
+ 1) a predicate function evaluating to true if the mime type matches. It may make use
+    of the following variables: handle : the handle for the part, size : number of chars in the part, 
+    type : the MIME type (e.g. \"image/png\"), subtype : the subtype (e.g. \"png\"), 
+    supertype : the supertype (e.g. \"image\"), filename : the filename.
+ 2) an action function (one of the functions listed in `gnus-mime-action-alist')
+ 3) an optional argument for the function (currently only used with `gnus-mime-pipe-part')."
+  :group 'gnus-summary-ext
+  :type `(repeat (list (string :tag "Description")
+		       (repeat
+			(list (function :tag "Predicate function" :value "(lambda nil t)")
+			      (choice ,@(mapcar (lambda (elem) (list 'const (cdr elem)))
+						gnus-mime-action-alist))
+			      (string :tag "Argument"))))))
+
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-match-mime-types (regex)
   "Return list of MIME media types matching REGEX."
@@ -199,12 +219,13 @@ All hooks will be disabled before selecting each article."
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE  
-(defun gnus-summary-ext-apply-to-marked-safely (arg sexp)
-  "Evaluate any lisp expression for all articles that are process/prefixed.
+(defun gnus-summary-ext-apply-to-marked-safely (arg fn)
+  "Call function FN for all articles that are process/prefixed.
+FN should be a function which takes a single argument - an article number,
+and will be called with that article selected, but without running any hooks.
 If no articles are marked use the article at point or articles in region, 
 and if ARG is non-nil include that many articles forward (if positive) or 
 backward (if negative) from the current article. 
-This will evaluate SEXP after selecting each article, but will not run any hooks.
 
 See `gnus-summary-apply-to-marked' if you want to run the appropriate hooks after
 selecting each article, and see `gnus-summary-iterate' for iterating over articles
@@ -214,18 +235,19 @@ without selecting them."
    (gnus-summary-work-articles arg)
    (article-goto-body)
    (let (gnus-newsgroup-processable)
-     (eval sexp))
+     (funcall fn article))
    (gnus-summary-remove-process-mark article))
   (gnus-summary-position-point))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE  
-(defun gnus-summary-ext-apply-to-marked (arg sexp)
+(defun gnus-summary-ext-apply-to-marked (arg fn)
   "Evaluate any lisp expression for all articles that are process/prefixed.
+FN should be a function which takes a single argument - the current article number,
+and will be called after selecting that article, and running any hooks.
 If no articles are marked use the article at point or articles in region, 
 and if ARG is non-nil include that many articles forward (if positive) or 
 backward (if negative) from the current article. 
-This will evaluate SEXP after selecting each article, and running any hooks.
 
 See `gnus-summary-ext-apply-to-marked-safely' for selecting each article without running hooks,
 and see `gnus-summary-iterate' for iterating over articles without selecting them."
@@ -234,7 +256,7 @@ and see `gnus-summary-iterate' for iterating over articles without selecting the
     (gnus-summary-select-article t t nil article)
     (with-current-buffer gnus-article-buffer
       (article-goto-body)
-      (eval sexp))))
+      (funcall fn article))))
 
 ;; simple-call-tree-info: CHECK
 (defun gnus-summary-ext-count-parts nil
@@ -306,26 +328,6 @@ Note: REGEX should match the whole filename, so you may need to put .* at the be
    (concat "Content-Disposition: attachment; filename=" regex) reverse))
 
 ;;;###autoload
-(defcustom gnus-summary-ext-mime-actions nil
-  "A list of sets of actions to apply to different mime types.
-Each set is a list whose car is a description of the set, and whose cdr is a list
-of sublists indicating what to do with a particular mime type. Each sublist contains
-the following items:
- 1) a predicate function evaluating to true if the mime type matches. It may make use
-    of the following variables: handle : the handle for the part, size : number of chars in the part, 
-    type : the MIME type (e.g. \"image/png\"), subtype : the subtype (e.g. \"png\"), 
-    supertype : the supertype (e.g. \"image\"), filename : the filename.
- 2) an action function (one of the functions listed in `gnus-mime-action-alist')
- 3) an optional argument for the function (currently only used with `gnus-mime-pipe-part')."
-  :group 'gnus-summary-ext
-  :type `(repeat (list (string :tag "Description")
-		       (repeat
-			(list (function :tag "Predicate function" :value "(lambda nil t)")
-			      (choice ,@(mapcar (lambda (elem) (list 'const (cdr elem)))
-						gnus-mime-action-alist))
-			      (string :tag "Argument"))))))
-
-;;;###autoload
 ;; simple-call-tree-info: CHECK  
 (defun gnus-summary-ext-mime-actions-prompt nil
   "Prompt user for an item from `gnus-summary-ext-mime-actions', or create a new one.
@@ -365,22 +367,12 @@ act on different mime types."
 
 ;;;###autoload
 (cl-defun gnus-summary-ext-mime-actions-on-parts (actions &optional noprompt noerror)
-  "Perform ACTION on all MIME parts in the current buffer for which PRED evaluates to non-nil.
-ARG is an optional argument for the ACTION function (a member of the cdr's of `gnus-mime-action-alist'), 
-or a form which evaluates to the required argument when point is on the mime part.
-PRED should be a function that evaluates to non-nil for the parts to be acted on, (by default 
-all parts are acted on).
-Both PRED and ARG may make use of the following let-bound variables:
- handle : the handle for the part,
- size : number of chars in the part, 
- type : the MIME type (e.g. \"image/png\"),
- subtype : the subtype (e.g. \"png\"), 
- supertype : the supertype (e.g. \"image\"),
- filename : the filename.
-When called interactively forms for ARG and PRED will be prompted for, and PRED will then be wrapped
-into a lambda function.
-
-The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and errors respectively."
+  "Perform ACTIONS on all MIME parts in the current buffer. 
+NOPROMPT and NOERROR indicate whether to ignore confirmation prompts and errors respectively.
+The ACTIONS argument should be a list of sublists with each sublist containing a predicate function
+which evaluates to true on the attachments to be acted on, the corresponding action, and any arguments, 
+in that order. 
+When called interactively an element of  `gnus-summary-ext-mime-actions' will be prompted for."
   (interactive (let ((all (gnus-summary-ext-mime-actions-prompt)))
 		 (list (cddr all) (first all) (second all))))
   (gnus-article-check-buffer)
@@ -412,14 +404,13 @@ The optional arguments NOPROMPT and NOERROR if non-nil will ignore prompts and e
 If ARG is non-nil or a prefix arg is supplied it indicates how many articles forward (if positive) or 
 backward (if negative) from the current article to include. Otherwise if region is active, process
 the articles within the region, otherwise process the process marked articles.
-Only MIME parts for which PRED evaluates to non-nil will be acted on. In which case the function
-specified by ACTION will be applied with argument ARG2. If NOPROMPT and NOERROR are non-nil then
-prompts and errors will be ignored. See `gnus-summary-ext-mime-action-on-parts' for more details.
-This command just applies that function to the articles."
+The ACTIONS, NOPROMPT and NOERROR arguments are the same as for `gnus-summary-ext-mime-actions-on-parts'.
+This command just applies that function to the marked articles."
   (interactive (let ((all (gnus-summary-ext-mime-actions-prompt)))
 		 (list (cddr all) (first all) (second all) current-prefix-arg)))
   (gnus-summary-ext-apply-to-marked
-   arg `(gnus-summary-ext-mime-actions-on-parts ',actions ,noprompt ,noerror)))
+   arg `(lambda (article) (gnus-summary-ext-mime-actions-on-parts
+			   ',actions ,noprompt ,noerror))))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
@@ -480,7 +471,7 @@ If NOT-ALL is non-nil then only the first matching header is returned."
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
-(defmacro gnus-summary-ext-filter (expr)
+(defun gnus-summary-ext-filter (expr)
   "Return list of article numbers of articles in summary buffer which match EXPR.
 EXPR can be any elisp form to be eval'ed for each article which returns non-nil for required articles.
 It can utilize named filters stored in `gnus-summary-ext-saved-filters' (which should be surrounded
@@ -519,71 +510,72 @@ For example, to filter messages received within the last week, either from alice
 
 To filter unreplied messages that are matched by either of the saved filters 'work' or 'friends':
   (gnus-summary-ext-filter '(and (unreplied) (or (work) (friends))))"
-  `(cl-flet* ((witharticle (pred) (gnus-summary-select-article t t nil article)
-			   (with-current-buffer gnus-article-buffer (funcall pred)))
-	      (withorigarticle (pred) (gnus-summary-select-article t t nil article)
-			       (with-current-buffer gnus-original-article-buffer (funcall pred)))
-	      (content (regexp) (witharticle (lambda nil
-					       (article-goto-body)
-					       (re-search-forward regexp nil t))))
-	      (header (hdrx regexp) (withorigarticle (lambda nil
-						       (let ((str (gnus-summary-ext-field-value hdrx)))
-							 (if str (string-match regexp str))))))
-	      (from (regexp) (string-match regexp (mail-header-from hdr)))
-	      (age (days) (let* ((younger (< days 0))
-				 (days (abs days))
-				 (date (gnus-date-get-time (mail-header-date hdr)))
-				 (is-younger (time-less-p
-					      (time-since date)
-					      (days-to-time days))))
-			    (if younger is-younger (not is-younger))))
-	      (agebetween (min max) (and (age min) (not (age max))))
-	      (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
-			      (memq (gnus-data-mark data) mrks)))
-	      (score (scr) (>= (gnus-summary-article-score article) scr))
-	      (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
-				     gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
-				     gnus-low-score-mark gnus-expirable-mark
-				     gnus-canceled-mark gnus-catchup-mark gnus-sparse-mark
-				     gnus-duplicate-mark)))
-	      (unread nil (not (read)))
-	      (replied nil (memq article gnus-newsgroup-replied))
-	      (unreplied nil (not (replied)))
-	      (filename (regexp) (withorigarticle (lambda nil
-						    (re-search-forward
-						     (concat "Content-Disposition: attachment; filename=" regexp)
-						     nil t))))
-	      (mimetype (regexp)
-			(withorigarticle (lambda nil
-					   (re-search-forward
-					    (content (concat "Content-Type: "
-							     (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
-					    nil t))))
-	      (numparts (min &optional max) (witharticle (lambda nil
-							   (let ((num (gnus-summary-ext-count-parts)))
-							     (and (>= num min) (if max (<= num max) t))))))
-	      (size (min &optional max) (witharticle (lambda nil 
-						       (let ((size (buffer-size)))
-							 (and (>= size min) (if max (<= size max) t))))))
-	      (subject (regexp) (string-match regexp (mail-header-subject hdr)))
-	      (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
-	      (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
-	      (recipient (regexp) (or (to regexp) (cc regexp)))
-	      (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
-	      ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
-			 if (> (length code) 1)
-			 collect `(,name (&optional ,@(car code)) ,@(cdr code))
-			 else
-			 collect (list name nil code)))
-     (let (filtered)
-       (gnus-summary-ext-iterate-articles-safely-1
-	(mapcar 'car gnus-newsgroup-data)
-	(let ((message-log-max nil))
-	  (message "Checking article %s" article))
-	(let* ((data (assq article gnus-newsgroup-data))
-	       (hdr (gnus-data-header data)))
-	  (when ,expr (push article filtered))))
-       filtered)))
+  ;; NOTE: there seems to be no way to avoid this eval. Turning the function into a macro doesn't work.
+  (eval `(cl-flet* ((witharticle (pred) (gnus-summary-select-article t t nil article)
+				 (with-current-buffer gnus-article-buffer (funcall pred)))
+		    (withorigarticle (pred) (gnus-summary-select-article t t nil article)
+				     (with-current-buffer gnus-original-article-buffer (funcall pred)))
+		    (content (regexp) (witharticle (lambda nil
+						     (article-goto-body)
+						     (re-search-forward regexp nil t))))
+		    (header (hdrx regexp) (withorigarticle (lambda nil
+							     (let ((str (gnus-summary-ext-field-value hdrx)))
+							       (if str (string-match regexp str))))))
+		    (from (regexp) (string-match regexp (mail-header-from hdr)))
+		    (age (days) (let* ((younger (< days 0))
+				       (days (abs days))
+				       (date (gnus-date-get-time (mail-header-date hdr)))
+				       (is-younger (time-less-p
+						    (time-since date)
+						    (days-to-time days))))
+				  (if younger is-younger (not is-younger))))
+		    (agebetween (min max) (and (age min) (not (age max))))
+		    (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
+				    (memq (gnus-data-mark data) mrks)))
+		    (score (scr) (>= (gnus-summary-article-score article) scr))
+		    (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
+					   gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
+					   gnus-low-score-mark gnus-expirable-mark
+					   gnus-canceled-mark gnus-catchup-mark gnus-sparse-mark
+					   gnus-duplicate-mark)))
+		    (unread nil (not (read)))
+		    (replied nil (memq article gnus-newsgroup-replied))
+		    (unreplied nil (not (replied)))
+		    (filename (regexp) (withorigarticle (lambda nil
+							  (re-search-forward
+							   (concat "Content-Disposition: attachment; filename=" regexp)
+							   nil t))))
+		    (mimetype (regexp)
+			      (withorigarticle (lambda nil
+						 (re-search-forward
+						  (content (concat "Content-Type: "
+								   (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
+						  nil t))))
+		    (numparts (min &optional max) (witharticle (lambda nil
+								 (let ((num (gnus-summary-ext-count-parts)))
+								   (and (>= num min) (if max (<= num max) t))))))
+		    (size (min &optional max) (witharticle (lambda nil 
+							     (let ((size (buffer-size)))
+							       (and (>= size min) (if max (<= size max) t))))))
+		    (subject (regexp) (string-match regexp (mail-header-subject hdr)))
+		    (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
+		    (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
+		    (recipient (regexp) (or (to regexp) (cc regexp)))
+		    (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
+		    ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
+			       if (> (length code) 1)
+			       collect `(,name (&optional ,@(car code)) ,@(cdr code))
+			       else
+			       collect (list name nil code)))
+	   (let (filtered)
+	     (gnus-summary-ext-iterate-articles-safely-1
+	      (mapcar 'car gnus-newsgroup-data)
+	      (let ((message-log-max nil))
+		(message "Checking article %s" article))
+	      (let* ((data (assq article gnus-newsgroup-data))
+		     (hdr (gnus-data-header data)))
+		(when ,expr (push article filtered))))
+	     filtered))))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
@@ -598,7 +590,7 @@ Filter expression (press up/down to see previous/saved filters): "
 		      nil nil t 'read-expression-history
 		      (mapcar (lambda (item) (concat "(" (symbol-name (car item)) ")"))
 			      gnus-summary-ext-saved-filters))))
-  (let ((filtered (gnus-summary-ext-filter expr)))
+  (let* ((filtered (gnus-summary-ext-filter expr)))
     (if (not filtered) (message "No messages matched"))
     (gnus-summary-limit filtered))
   (gnus-summary-position-point))
