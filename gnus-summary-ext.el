@@ -310,12 +310,14 @@ Note: the articles returned might not match the size constraints exactly, but it
      (mapcar 'car gnus-newsgroup-data)
      (article-goto-body)
      (let ((size (buffer-size)))
-       (when (and (>= size min) (<= size max))
-         (push article articles))))
+       (when (or (and (not reverse) (>= size min) (<= size max))
+		 (and reverse (< size min))
+		 (and reverse (> size max)))
+	 (push article articles))))
     (if (not articles)
         (message "No messages matched")
       (gnus-summary-limit articles)))
-    (gnus-summary-position-point))
+  (gnus-summary-position-point))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE  
@@ -622,17 +624,21 @@ Filter expression (press up/down to see previous/saved filters): "
 
 ;;;###autoload
 (defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
-  "Extract text from process marked according to SPEC."
+  "Extract text from process marked articles.
+If no articles are marked use the article at point or articles in region, 
+and if ARG is non-nil include that many articles forward (if positive) or 
+backward (if negative) from the current article. 
+Text will be extracted according to the specification in the list SPEC (see `extract-text')
+For an explanation of the other arguments (POSTPROC, EXPORT, CONVFN & PARAMS) see `extract-text-from-buffers'."
   (interactive (append (list current-prefix-arg)
 		       (extract-text-choose-prog)
-		       (extract-text-choose-export-args)))
+		       (extract-text-choose-export-args '("insert at point"))))
   (let (results)
     (gnus-summary-ext-apply-to-marked-safely
      arg `(lambda (article)
-	    (setq results (cons (extract-text-from-current-buffer ',spec) results))))
+	    (setq results (cons (funcall (extract-text-compile-prog ',spec)) results))))
     (extract-text-process-results
      (nreverse results) postproc export convfn params)))
-
 
 (provide 'gnus-summary-ext)
 
