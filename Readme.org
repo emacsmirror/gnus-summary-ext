@@ -27,27 +27,45 @@ process mark. See the documentation of the individual commands & functions for m
 details.
 
 * Commands
-Below is a complete command list:
-
-- gnus-summary-ext-limit-to-mime-type
-   Limit the summary buffer to articles containing MIME parts with types matching REGEX.
-- gnus-summary-ext-limit-to-num-parts
-   Limit the summary buffer to articles containing between MIN & MAX attachments.
-- gnus-summary-ext-limit-to-size
-   Limit the summary buffer to articles of size between MIN and MAX bytes.
-- gnus-summary-ext-limit-to-filename
-   Limit the summary buffer to articles containing attachments with names matching REGEX.
-- gnus-summary-ext-limit-filter
-   Limit the summary buffer to articles which match filter expression.
-- gnus-summary-ext-uu-mark-filter
-   Apply process mark to all articles in the summary buffer which match filter expression.
-- gnus-summary-ext-apply-to-marked-safely
-   Evaluate any lisp expression for all articles that are process/prefixed.
-- gnus-summary-ext-apply-to-marked
-   Evaluate any lisp expression for all articles that are process/prefixed.
-- gnus-summary-ext-act-on-parts-in-marked
-   Do something with all MIME parts in articles that are process/prefixed.
-
+-  `gnus-summary-ext-limit-to-mime-type'
+    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
+    Keybinding: M-x gnus-summary-ext-limit-to-mime-type
+-  `gnus-summary-ext-apply-to-marked-safely'
+    Call function FN for all articles that are process/prefixed.
+    Keybinding: M-x gnus-summary-ext-apply-to-marked-safely
+-  `gnus-summary-ext-apply-to-marked'
+    Evaluate any lisp expression for all articles that are process/prefixed.
+    Keybinding: M-x gnus-summary-ext-apply-to-marked
+-  `gnus-summary-ext-limit-to-num-parts'
+    Limit the summary buffer to articles containing between MIN & MAX attachments.
+    Keybinding: M-x gnus-summary-ext-limit-to-num-parts
+-  `gnus-summary-ext-limit-to-size'
+    Limit the summary buffer to articles of size between MIN and MAX bytes.
+    Keybinding: M-x gnus-summary-ext-limit-to-size
+-  `gnus-summary-ext-limit-to-filename'
+    Limit the summary buffer to articles containing attachments with names matching REGEX.
+    Keybinding: M-x gnus-summary-ext-limit-to-filename
+-  `gnus-summary-ext-mime-actions-on-parts'
+    Perform ACTIONS on all MIME parts in the current buffer. 
+    Keybinding: M-x gnus-summary-ext-mime-actions-on-parts
+-  `gnus-summary-ext-act-on-parts-in-marked'
+    Do something with all MIME parts in articles that are process/prefixed.
+    Keybinding: M-x gnus-summary-ext-act-on-parts-in-marked
+-  `gnus-summary-ext-limit-filter'
+    Limit the summary buffer to articles which match EXPR.
+    Keybinding: M-x gnus-summary-ext-limit-filter
+-  `gnus-summary-ext-uu-mark-filter'
+    Apply/remove process mark to all articles in the summary buffer which match EXPR.
+    Keybinding: M-x gnus-summary-ext-uu-mark-filter
+-  `gnus-summary-ext-extract-text'
+    Extract text from process marked articles.
+* Options
+-  `gnus-summary-ext-saved-filters'
+    A list of named filters that can be used with `gnus-summary-ext-limit-filter'.
+    default = nil
+-  `gnus-summary-ext-mime-actions'
+    A list of sets of actions to apply to different mime types.
+    default = nil
 * Installation
 
  - If you have [[http://www.marmalade-repo.org/][marmalade-repo.org]], this gnus-summary-ext is part of the emacs packages you can install.  

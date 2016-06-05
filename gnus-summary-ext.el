@@ -16,7 +16,7 @@
 ;;
 ;; Features that might be required by this library:
 ;;
-;; gnus, cl
+;; gnus, cl, extract-text
 ;;
 
 ;;; This file is NOT part of GNU Emacs
@@ -56,46 +56,51 @@
 
 ;;; Commands:
 ;;
-;; Below are complete command list:
+;; Below is a complete list of commands:
 ;;
 ;;  `gnus-summary-ext-limit-to-mime-type'
 ;;    Limit the summary buffer to articles containing MIME parts with types matching REGEX.
-;;  `gnus-summary-ext-limit-to-num-parts'
-;;    Limit the summary buffer to articles containing between MIN & MAX attachments.
-;;  `gnus-summary-ext-limit-to-size'
-;;    Limit the summary buffer to articles of size between MIN and MAX bytes.
-;;  `gnus-summary-ext-limit-to-filename'
-;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
-;;  `gnus-summary-ext-limit-filter'
-;;    Limit the summary buffer to articles which match filter expression.
-;;  `gnus-summary-ext-uu-mark-filter' 
-;;    Apply process mark to all articles in the summary buffer which match filter expression.
+;;    Keybinding: M-x gnus-summary-ext-limit-to-mime-type
 ;;  `gnus-summary-ext-apply-to-marked-safely'
-;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;    Call function FN for all articles that are process/prefixed.
+;;    Keybinding: M-x gnus-summary-ext-apply-to-marked-safely
 ;;  `gnus-summary-ext-apply-to-marked'
 ;;    Evaluate any lisp expression for all articles that are process/prefixed.
+;;    Keybinding: M-x gnus-summary-ext-apply-to-marked
+;;  `gnus-summary-ext-limit-to-num-parts'
+;;    Limit the summary buffer to articles containing between MIN & MAX attachments.
+;;    Keybinding: M-x gnus-summary-ext-limit-to-num-parts
+;;  `gnus-summary-ext-limit-to-size'
+;;    Limit the summary buffer to articles of size between MIN and MAX bytes.
+;;    Keybinding: M-x gnus-summary-ext-limit-to-size
+;;  `gnus-summary-ext-limit-to-filename'
+;;    Limit the summary buffer to articles containing attachments with names matching REGEX.
+;;    Keybinding: M-x gnus-summary-ext-limit-to-filename
+;;  `gnus-summary-ext-mime-actions-on-parts'
+;;    Perform ACTIONS on all MIME parts in the current buffer. 
+;;    Keybinding: M-x gnus-summary-ext-mime-actions-on-parts
 ;;  `gnus-summary-ext-act-on-parts-in-marked'
 ;;    Do something with all MIME parts in articles that are process/prefixed.
+;;    Keybinding: M-x gnus-summary-ext-act-on-parts-in-marked
+;;  `gnus-summary-ext-limit-filter'
+;;    Limit the summary buffer to articles which match EXPR.
+;;    Keybinding: M-x gnus-summary-ext-limit-filter
+;;  `gnus-summary-ext-uu-mark-filter'
+;;    Apply/remove process mark to all articles in the summary buffer which match EXPR.
+;;    Keybinding: M-x gnus-summary-ext-uu-mark-filter
+;;  `gnus-summary-ext-extract-text'
+;;    Extract text from process marked articles.
 ;;
 ;;; Customizable Options:
 ;;
-;; Below are customizable option list:
+;; Below is a list of customizable options:
 ;;
 ;;  `gnus-summary-ext-saved-filters'
-;;    An alist of named filters that can be used with `gnus-summary-ext-limit-filter'.
+;;    A list of named filters that can be used with `gnus-summary-ext-limit-filter'.
 ;;    default = nil
-
-;;; Installation:
-;;
-;; Put gnus-summary-ext.el in a directory in your load-path, e.g. ~/.emacs.d/
-;; You can add a directory to your load-path with the following line in ~/.emacs
-;; (add-to-list 'load-path (expand-file-name "~/elisp"))
-;; where ~/elisp is the directory you want to add 
-;; (you don't need to do this for ~/.emacs.d - it's added by default).
-;;
-;; Add the following to your ~/.emacs startup file.
-;;
-;; (require 'gnus-summary-ext)
+;;  `gnus-summary-ext-mime-actions'
+;;    A list of sets of actions to apply to different mime types.
+;;    default = nil
 
 
 ;;; Change log:
@@ -120,6 +125,7 @@
 
 ;;; Require
 (require 'gnus)
+(require 'extract-text nil t)
 (eval-when-compile 'cl)
 
 ;;; Code:
@@ -368,7 +374,7 @@ act on different mime types."
 		  (y-or-n-p "Ignore errors?")) results)))
 
 ;;;###autoload
-(cl-defun gnus-summary-ext-mime-actions-on-parts (actions &optional noprompt noerror)
+(defun gnus-summary-ext-mime-actions-on-parts (actions &optional noprompt noerror)
   "Perform ACTIONS on all MIME parts in the current buffer. 
 NOPROMPT and NOERROR indicate whether to ignore confirmation prompts and errors respectively.
 The ACTIONS argument should be a list of sublists with each sublist containing a predicate function
@@ -401,7 +407,7 @@ When called interactively an element of  `gnus-summary-ext-mime-actions' will be
 
 ;;;###autoload
 ;; simple-call-tree-info: CHECK  
-(cl-defun gnus-summary-ext-act-on-parts-in-marked (actions &optional noprompt noerror arg)  
+(defun gnus-summary-ext-act-on-parts-in-marked (actions &optional noprompt noerror arg)  
   "Do something with all MIME parts in articles that are process/prefixed.
 If ARG is non-nil or a prefix arg is supplied it indicates how many articles forward (if positive) or 
 backward (if negative) from the current article to include. Otherwise if region is active, process
@@ -622,23 +628,24 @@ Filter expression (press up/down to see previous/saved filters): "
 	  (gnus-summary-set-process-mark num)))))
   (gnus-summary-position-point))
 
+(if (featurep 'extract-text)
 ;;;###autoload
-(defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
-  "Extract text from process marked articles.
+    (defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
+      "Extract text from process marked articles.
 If no articles are marked use the article at point or articles in region, 
 and if ARG is non-nil include that many articles forward (if positive) or 
 backward (if negative) from the current article. 
 Text will be extracted according to the specification in the list SPEC (see `extract-text')
 For an explanation of the other arguments (POSTPROC, EXPORT, CONVFN & PARAMS) see `extract-text-from-buffers'."
-  (interactive (append (list current-prefix-arg)
-		       (extract-text-choose-prog)
-		       (extract-text-choose-export-args '("insert at point"))))
-  (let (results)
-    (gnus-summary-ext-apply-to-marked-safely
-     arg `(lambda (article)
-	    (setq results (cons (funcall (extract-text-compile-prog ',spec)) results))))
-    (extract-text-process-results
-     (nreverse results) postproc export convfn params)))
+      (interactive (append (list current-prefix-arg)
+			   (extract-text-choose-prog)
+			   (extract-text-choose-export-args '("insert at point"))))
+      (let (results)
+	(gnus-summary-ext-apply-to-marked-safely
+	 arg `(lambda (article)
+		(setq results (cons (funcall (extract-text-compile-prog ',spec)) results))))
+	(extract-text-process-results
+	 (nreverse results) postproc export convfn params))))
 
 (provide 'gnus-summary-ext)
 
