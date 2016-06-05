@@ -511,6 +511,7 @@ For example, to filter messages received within the last week, either from alice
 To filter unreplied messages that are matched by either of the saved filters 'work' or 'friends':
   (gnus-summary-ext-filter '(and (unreplied) (or (work) (friends))))"
   ;; NOTE: there seems to be no way to avoid this eval. Turning the function into a macro doesn't work.
+  ;; I think the problem is due to the `cl-flet*'
   (eval `(cl-flet* ((witharticle (pred) (gnus-summary-select-article t t nil article)
 				 (with-current-buffer gnus-article-buffer (funcall pred)))
 		    (withorigarticle (pred) (gnus-summary-select-article t t nil article)
@@ -620,17 +621,17 @@ Filter expression (press up/down to see previous/saved filters): "
   (gnus-summary-position-point))
 
 ;;;###autoload
-;; (defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
-;;   "Extract text from process marked according to SPEC."
-;;   (interactive (append current-prefix-arg
-;; 		       (extract-text-choose-prog)
-;; 		       (extract-text-choose-export-args)))
-;;   (let (results)
-;;     (gnus-summary-ext-apply-to-marked-safely arg '()))
-
-;;   (extract-text-process-results results postproc export convfn params)
-
-;;   )
+(defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
+  "Extract text from process marked according to SPEC."
+  (interactive (append (list current-prefix-arg)
+		       (extract-text-choose-prog)
+		       (extract-text-choose-export-args)))
+  (let (results)
+    (gnus-summary-ext-apply-to-marked-safely
+     arg `(lambda (article)
+	    (setq results (cons (extract-text-from-current-buffer ',spec) results))))
+    (extract-text-process-results
+     (nreverse results) postproc export convfn params)))
 
 
 (provide 'gnus-summary-ext)
