@@ -241,8 +241,7 @@ without selecting them."
    (gnus-summary-work-articles arg)
    (article-goto-body)
    (let (gnus-newsgroup-processable)
-     (funcall fn article))
-   (gnus-summary-remove-process-mark article))
+     (funcall fn article)))
   (gnus-summary-position-point))
 
 ;;;###autoload
@@ -497,7 +496,7 @@ in parentheses, e.g: (filter)), and any of the following functions:
  (unreplied) : matches articles which haven't been replied to (equivalent to (not (replied)))
  (age DAYS) : matches articles received before/after DAYS days ago (see `gnus-summary-limit-to-age')
  (agebetween MIN MAX) : matches articles received between MIN and MAX days ago.
- (marks STR) : matches articles with marks in STR (see `gnus-summary-limit-to-marks')
+ (marks STR) : matches articles with any of the marks in STR (see `gnus-summary-limit-to-marks')
 
 The following functions can also be used but will be much slower since they are evaluated after selecting
 each article:
@@ -547,7 +546,9 @@ To filter unreplied messages that are matched by either of the saved filters 'wo
 				   (if younger is-younger (not is-younger))))
 		     (agebetween (min max) (and (age min) (not (age max))))
 		     (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
-				     (memq (gnus-data-mark data) mrks)))
+				     (or (memq (gnus-data-mark data) mrks)
+					 (and (memq ?# mrks)
+					      (memq article gnus-newsgroup-processable)))))
 		     (score (scr) (>= (gnus-summary-article-score article) scr))
 		     (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
 					    gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
