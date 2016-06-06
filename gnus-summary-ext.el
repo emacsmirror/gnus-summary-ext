@@ -518,73 +518,84 @@ For example, to filter messages received within the last week, either from alice
 
 To filter unreplied messages that are matched by either of the saved filters 'work' or 'friends':
   (gnus-summary-ext-filter '(and (unreplied) (or (work) (friends))))"
-  ;; NOTE: there seems to be no way to avoid this eval. Turning the function into a macro doesn't work.
-  ;; I think the problem is due to the `cl-flet*'
-  (eval `(cl-flet* ((witharticle (pred) (gnus-summary-select-article t t nil article)
-				 (with-current-buffer gnus-article-buffer (funcall pred)))
-		    (withorigarticle (pred) (gnus-summary-select-article t t nil article)
-				     (with-current-buffer gnus-original-article-buffer (funcall pred)))
-		    (content (regexp) (witharticle (lambda nil
-						     (article-goto-body)
-						     (re-search-forward regexp nil t))))
-		    (header (hdrx regexp) (withorigarticle (lambda nil
-							     (let ((str (gnus-summary-ext-field-value hdrx)))
-							       (if str (string-match regexp str))))))
-		    (from (regexp) (string-match regexp (mail-header-from hdr)))
-		    (age (days) (let* ((younger (< days 0))
-				       (days (abs days))
-				       (date (gnus-date-get-time (mail-header-date hdr)))
-				       (is-younger (time-less-p
-						    (time-since date)
-						    (days-to-time days))))
-				  (if younger is-younger (not is-younger))))
-		    (agebetween (min max) (and (age min) (not (age max))))
-		    (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
-				    (memq (gnus-data-mark data) mrks)))
-		    (score (scr) (>= (gnus-summary-article-score article) scr))
-		    (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
-					   gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
-					   gnus-low-score-mark gnus-expirable-mark
-					   gnus-canceled-mark gnus-catchup-mark gnus-sparse-mark
-					   gnus-duplicate-mark)))
-		    (unread nil (not (read)))
-		    (replied nil (memq article gnus-newsgroup-replied))
-		    (unreplied nil (not (replied)))
-		    (filename (regexp) (withorigarticle (lambda nil
-							  (re-search-forward
-							   (concat "Content-Disposition: attachment; filename=" regexp)
-							   nil t))))
-		    (mimetype (regexp)
-			      (withorigarticle (lambda nil
-						 (re-search-forward
-						  (content (concat "Content-Type: "
-								   (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
-						  nil t))))
-		    (numparts (min &optional max) (witharticle (lambda nil
-								 (let ((num (gnus-summary-ext-count-parts)))
-								   (and (>= num min) (if max (<= num max) t))))))
-		    (size (min &optional max) (witharticle (lambda nil 
-							     (let ((size (buffer-size)))
-							       (and (>= size min) (if max (<= size max) t))))))
-		    (subject (regexp) (string-match regexp (mail-header-subject hdr)))
-		    (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
-		    (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
-		    (recipient (regexp) (or (to regexp) (cc regexp)))
-		    (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
-		    ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
-			       if (> (length code) 1)
-			       collect `(,name (&optional ,@(car code)) ,@(cdr code))
-			       else
-			       collect (list name nil code)))
-	   (let (filtered)
-	     (gnus-summary-ext-iterate-articles-safely-1
-	      (mapcar 'car gnus-newsgroup-data)
-	      (let ((message-log-max nil))
-		(message "Checking article %s" article))
-	      (let* ((data (assq article gnus-newsgroup-data))
-		     (hdr (gnus-data-header data)))
-		(when ,expr (push article filtered))))
-	     filtered))))
+  ;; NOTE: there seems to be no way to avoid this eval. Turning the function into a macro doesn't work
+  ;; when EXPR contains calls to the `cl-flet*' bound functions.
+  (let* ((byte-compile-warnings '(unresolved
+				  callargs redefine obsolete
+				  noruntime cl-functions
+				  interactive-only lexical make-local
+				  mapcar constants suspicious))
+	 (fn `(lambda nil
+		(cl-flet*
+		    ((witharticle (pred) (gnus-summary-select-article t t nil article)
+				  (with-current-buffer gnus-article-buffer (funcall pred)))
+		     (withorigarticle (pred) (gnus-summary-select-article t t nil article)
+				      (with-current-buffer gnus-original-article-buffer (funcall pred)))
+		     (content (regexp) (witharticle (lambda nil
+						      (article-goto-body)
+						      (re-search-forward regexp nil t))))
+		     (header (hdrx regexp) (withorigarticle (lambda nil
+							      (let ((str (gnus-summary-ext-field-value hdrx)))
+								(if str (string-match regexp str))))))
+		     (from (regexp) (string-match regexp (mail-header-from hdr)))
+		     (age (days) (let* ((younger (< days 0))
+					(days (abs days))
+					(date (gnus-date-get-time (mail-header-date hdr)))
+					(is-younger (time-less-p
+						     (time-since date)
+						     (days-to-time days))))
+				   (if younger is-younger (not is-younger))))
+		     (agebetween (min max) (and (age min) (not (age max))))
+		     (marks (mrks) (let ((mrks (if (listp mrks) mrks (append mrks nil))))
+				     (memq (gnus-data-mark data) mrks)))
+		     (score (scr) (>= (gnus-summary-article-score article) scr))
+		     (read nil (marks (list gnus-del-mark gnus-read-mark gnus-ancient-mark
+					    gnus-killed-mark gnus-spam-mark gnus-kill-file-mark
+					    gnus-low-score-mark gnus-expirable-mark
+					    gnus-canceled-mark gnus-catchup-mark gnus-sparse-mark
+					    gnus-duplicate-mark)))
+		     (unread nil (not (read)))
+		     (replied nil (memq article gnus-newsgroup-replied))
+		     (unreplied nil (not (replied)))
+		     (filename (regexp) (withorigarticle (lambda nil
+							   (re-search-forward
+							    (concat "Content-Disposition: attachment; filename=" regexp)
+							    nil t))))
+		     (mimetype (regexp)
+			       (withorigarticle (lambda nil
+						  (re-search-forward
+						   (content (concat "Content-Type: "
+								    (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
+						   nil t))))
+		     (numparts (min &optional max) (witharticle (lambda nil
+								  (let ((num (gnus-summary-ext-count-parts)))
+								    (and (>= num min) (if max (<= num max) t))))))
+		     (size (min &optional max) (witharticle (lambda nil 
+							      (let ((size (buffer-size)))
+								(and (>= size min) (if max (<= size max) t))))))
+		     (subject (regexp) (string-match regexp (mail-header-subject hdr)))
+		     (to (regexp) (string-match regexp (or (cdr (assoc 'To (mail-header-extra hdr))) "")))
+		     (cc (regexp) (string-match regexp (or (cdr (assoc 'Cc (mail-header-extra hdr))) "")))
+		     (recipient (regexp) (or (to regexp) (cc regexp)))
+		     (address (regexp) (or (to regexp) (cc regexp) (from regexp)))
+		     ,@(cl-loop for (name . code) in gnus-summary-ext-saved-filters
+				if (> (length code) 1)
+				collect `(,name (&optional ,@(if (car code)
+								 (car code)
+							       '(nil))) ,@(cdr code))
+				else
+				collect (list name nil (cdr code))))
+		  ,expr)))
+	 (filterfn (byte-compile-sexp fn)))
+    (let (filtered)
+      (gnus-summary-ext-iterate-articles-safely-1
+       (mapcar 'car gnus-newsgroup-data)
+       (let ((message-log-max nil))
+	 (message "Checking article %s" article))
+       (let* ((data (assq article gnus-newsgroup-data))
+	      (hdr (gnus-data-header data)))
+	 (when (funcall filterfn) (push article filtered))))
+      filtered)))
 
 ;;;###autoload
 ;; simple-call-tree-info: DONE
