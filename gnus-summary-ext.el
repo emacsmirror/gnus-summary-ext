@@ -357,7 +357,7 @@ act on different mime types."
 	  (setq val (read-from-minibuffer
 		     (format msg "matching parts (default matches all parts)")
 		     nil nil nil 'read-expression-history)
-		pred (if (equal val "") t (read val))
+		pred (if (equal val "") (lambda nil t) (read val))
 		action (let ((name (gnus-completing-read
 				    "Action" (mapcar 'car gnus-mime-action-alist) t)))
 			 (cdr (assoc name gnus-mime-action-alist)))
@@ -642,6 +642,7 @@ Filter expression (press up/down to see previous/saved filters): "
 
 (if (featurep 'extract-text)
 ;;;###autoload
+    ;; simple-call-tree-info: STARTED  
     (defun gnus-summary-ext-extract-text (arg spec &optional postproc export convfn params)
       "Extract text from process marked articles.
 If no articles are marked use the article at point or articles in region, 
