@@ -49,6 +49,8 @@
 ;; using `gnus-summary-ext-limit-filter', or apply the process mark to such articles with
 ;; `gnus-summary-ext-uu-mark-filter'.
 ;; You can save these filters in `gnus-summary-ext-saved-filters'.
+;; 
+;; To add new keybindings for these new filter commands add `gnus-summary-ext-hook' to `gnus-summary-mode-hook'.
 
 ;; See the documentation of the individual commands & functions for more
 ;; details.
@@ -659,6 +661,18 @@ For an explanation of the other arguments (POSTPROC, EXPORT, CONVFN & PARAMS) se
 		(setq results (cons (funcall (extract-text-compile-prog ',spec)) results))))
 	(extract-text-process-results
 	 (nreverse results) postproc export convfn params))))
+
+
+(defun gnus-summary-ext-hook ()
+  "Define keys for `gnus-summary-ext-filter' commands.
+This should be added to `gnus-summary-mode-hook'."
+  (define-key gnus-summary-limit-map (kbd "z") 'gnus-summary-ext-limit-to-size)
+  (define-key gnus-summary-limit-map (kbd "f") 'gnus-summary-ext-limit-to-filename)
+  (define-key gnus-summary-limit-map (kbd "i") 'gnus-summary-ext-limit-to-mime-type)
+  (define-key gnus-summary-limit-map (kbd "/") 'gnus-summary-ext-limit-filter)
+  (define-key gnus-summary-limit-map (kbd "F") 'gnus-summary-ext-limit-filter)
+  (define-key gnus-summary-limit-map (kbd "P") 'gnus-summary-ext-limit-to-num-parts)
+  (define-key gnus-summary-limit-map (kbd "#") 'gnus-summary-ext-uu-mark-filter))
 
 (provide 'gnus-summary-ext)
 
