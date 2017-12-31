@@ -566,12 +566,10 @@ To filter unreplied messages that are matched by either of the saved filters 'wo
 							    nil t))))
 		     (mimetype (regexp)
 			       (withorigarticle (lambda nil
-						  (let ((cnt (content
-							      (concat
-							       "Content-Type: "
-							       (regexp-opt (gnus-summary-ext-match-mime-types regexp))))))
-						    (and cnt
-							 (re-search-forward cnt nil t))))))
+						  (content
+						   (concat
+						    "Content-Type: "
+						    (regexp-opt (gnus-summary-ext-match-mime-types regexp)))))))
 		     (numparts (min &optional max) (witharticle (lambda nil
 								  (let ((num (gnus-summary-ext-count-parts)))
 								    (and (>= num min) (if max (<= num max) t))))))
