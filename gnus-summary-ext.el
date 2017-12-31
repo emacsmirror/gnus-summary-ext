@@ -591,7 +591,7 @@ To filter unreplied messages that are matched by either of the saved filters 'wo
 				else
 				collect (list name nil (cdr code))))
 		  ,expr)))
-	 (filterfn fn))
+	 (filterfn (byte-compile-sexp fn)))
     (let (filtered)
       (gnus-summary-ext-iterate-articles-safely-1
        (mapcar 'car gnus-newsgroup-data)
