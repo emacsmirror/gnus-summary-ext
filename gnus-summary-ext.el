@@ -128,7 +128,7 @@
 ;;; Require
 (require 'gnus)
 (require 'extract-text nil t)
-(eval-when-compile 'cl)
+(eval-when-compile (require 'cl))
 
 ;;; Code:
 
@@ -183,8 +183,8 @@ the following items:
 ;; simple-call-tree-info: DONE  
 (defun gnus-summary-ext-match-mime-types (regex)
   "Return list of MIME media types matching REGEX."
-  (remove-if-not (lambda (x) (string-match regex x))
-                 (mailcap-mime-types)))
+  (cl-remove-if-not (lambda (x) (string-match regex x))
+		    (mailcap-mime-types)))
 
 
 ;;;###autoload
@@ -566,10 +566,12 @@ To filter unreplied messages that are matched by either of the saved filters 'wo
 							    nil t))))
 		     (mimetype (regexp)
 			       (withorigarticle (lambda nil
-						  (re-search-forward
-						   (content (concat "Content-Type: "
-								    (regexp-opt (gnus-summary-ext-match-mime-types regexp))))
-						   nil t))))
+						  (let ((cnt (content
+							      (concat
+							       "Content-Type: "
+							       (regexp-opt (gnus-summary-ext-match-mime-types regexp))))))
+						    (and cnt
+							 (re-search-forward cnt nil t))))))
 		     (numparts (min &optional max) (witharticle (lambda nil
 								  (let ((num (gnus-summary-ext-count-parts)))
 								    (and (>= num min) (if max (<= num max) t))))))
@@ -589,7 +591,7 @@ To filter unreplied messages that are matched by either of the saved filters 'wo
 				else
 				collect (list name nil (cdr code))))
 		  ,expr)))
-	 (filterfn (byte-compile-sexp fn)))
+	 (filterfn fn))
     (let (filtered)
       (gnus-summary-ext-iterate-articles-safely-1
        (mapcar 'car gnus-newsgroup-data)
